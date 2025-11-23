@@ -1,5 +1,3 @@
-import os
-import librosa
 import librosa.display
 import matplotlib.pyplot as plt
 import numpy as np
@@ -69,18 +67,13 @@ plt.tight_layout()
 # --- (D) MFCCs ---
 # Compute mel-spectrogram first (power), then MFCC
 n_mels = 40
-# S_power = librosa.feature.melspectrogram(S=np.abs(D)**2, sr=sr, n_mels=n_mels, fmax=sr/2, hop_length=hop_length)
 S_power = librosa.feature.melspectrogram(y=y, sr=sr, n_fft=n_fft, hop_length=hop_length, n_mels=n_mels)
 
 n_mfcc = 13
 mfcc = librosa.feature.mfcc(S=librosa.power_to_db(S_power), n_mfcc=n_mfcc)
 
-print("\n=== MFCCs ===")
-print(f"MFCC shape: {mfcc.shape}  -> (n_mfcc, n_frames) = ({n_mfcc}, {mfcc.shape[1]})")
-
 # Plot MFCCs as heatmap
 plt.subplot(3, 1, 3)
-# plt.figure(figsize=(11, 4.5))
 librosa.display.specshow(mfcc, x_axis='time', sr=sr, hop_length=hop_length, cmap='viridis')
 plt.colorbar(format="%+2.2f")
 plt.title(f"MFCC - {n_mfcc} coefficients")
@@ -88,35 +81,3 @@ plt.xlabel("Time (s)")
 plt.ylabel("MFCC coefficients")
 plt.tight_layout()
 plt.show()
-
-# Optionally print mean and std of MFCCs across time
-mfcc_means = np.mean(mfcc, axis=1)
-mfcc_stds = np.std(mfcc, axis=1)
-print("\nMFCC mean (per coefficient):")
-for i, (m,s) in enumerate(zip(mfcc_means, mfcc_stds), start=1):
-    print(f"  MFCC {i:02d}: mean = {m:.4f}, std = {s:.4f}")
-
-
-
-
-
-# # --- Plot waveform ---
-# plt.figure(figsize=(12, 3))
-# librosa.display.waveshow(y, sr=sr)
-# plt.title(f"Waveform: {file_name}")
-# plt.xlabel("time (sec)")
-# plt.ylabel("amplitude ()")
-# plt.tight_layout()
-# plt.show()
-#
-# # --- Compute STFT ---
-# D = librosa.stft(y, n_fft=1024, hop_length=256)
-# S_db = librosa.amplitude_to_db(np.abs(D), ref=np.max)
-#
-# # --- Plot STFT ---
-# plt.figure(figsize=(10, 4))
-# librosa.display.specshow(S_db, sr=sr, hop_length=256, x_axis='time', y_axis='hz')
-# plt.colorbar(format="%+2.f dB")
-# plt.title(f"STFT (librosa) – {file_name}")
-# plt.tight_layout()
-# plt.show()
