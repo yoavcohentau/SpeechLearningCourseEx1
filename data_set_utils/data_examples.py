@@ -91,7 +91,7 @@ if __name__ == "__main__":
     data_set_name = "test-clean"  # "dev-clean" or "test-clean"
 
     # EDIT HERE: put your local LibriSpeech path (directory containing dev-clean/, test-clean/, SPEAKERS.TXT)
-    LIBRISPEECH_ROOT = fr"J:\My Drive\Courses\2026A\Signal Processing and Machine Learning for Speech\HW\SpeechLearningCourseEx1\data\{data_set_name}\LibriSpeech"
+    LIBRISPEECH_ROOT = fr"J:\My Drive\Courses\2026A\Signal Processing and Machine Learning for Speech\HW\HW1\SpeechLearningCourseEx1\data\{data_set_name}\LibriSpeech"
 
     speakers_file = os.path.join(LIBRISPEECH_ROOT, "SPEAKERS.TXT")
     speakers_meta = load_speakers_metadata(speakers_file)

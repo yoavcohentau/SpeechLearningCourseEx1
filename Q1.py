@@ -4,7 +4,7 @@ import numpy as np
 
 data_set_name = "dev-clean"  # "dev-clean" or "test-clean"
 
-data_set_path = fr"J:\My Drive\Courses\2026A\Signal Processing and Machine Learning for Speech\HW\SpeechLearningCourseEx1\data\{data_set_name}\LibriSpeech"
+data_set_path = fr"J:\My Drive\Courses\2026A\Signal Processing and Machine Learning for Speech\HW\HW1\SpeechLearningCourseEx1\data\{data_set_name}\LibriSpeech"
 
 speaker_id = '84'
 chapter_number = '121123'
@@ -20,10 +20,11 @@ y, sr = librosa.load(file_path, sr=None)
 
 
 # --- (A) signal characteristics ---
-print(f"Sample rate:    {sr}[Hz]")
-print(f"Duration:       {len(y)/sr}[sec]")
-print(f"Max amp value:  {max(y)}")
-print(f"Min amp value:  {min(y)}")
+print(f"Signal Characteristic of the File {file_name}:")
+print(f"   - Sample rate:    {sr}[Hz]")
+print(f"   - Duration:       {len(y)/sr}[sec]")
+print(f"   - Max amp value:  {max(y)}")
+print(f"   - Min amp value:  {min(y)}")
 
 
 # --- (B) plot waveform (time domain) ---

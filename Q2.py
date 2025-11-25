@@ -114,7 +114,7 @@ def split_speakers(speakers, train_size=66):
 
 def main():
     # data sets paths
-    data_sets_path = fr"J:\My Drive\Courses\2026A\Signal Processing and Machine Learning for Speech\HW\SpeechLearningCourseEx1\data"
+    data_sets_path = fr"J:\My Drive\Courses\2026A\Signal Processing and Machine Learning for Speech\HW\HW1\SpeechLearningCourseEx1\data"
     dev_data_path = fr"{data_sets_path}\dev-clean\LibriSpeech\dev-clean"
     test_data_path = fr"{data_sets_path}\test-clean\LibriSpeech\test-clean"
     speakers_txt_path = fr"{data_sets_path}\dev-clean\LibriSpeech\SPEAKERS.TXT"
