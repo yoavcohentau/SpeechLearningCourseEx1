@@ -3,3 +3,5 @@ matplotlib
 scipy
 numpy
 librosa
+tqdm
+pandas
