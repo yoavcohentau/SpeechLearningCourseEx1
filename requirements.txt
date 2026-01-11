@@ -5,3 +5,4 @@ numpy
 librosa
 tqdm
 pandas
+rir_generator
