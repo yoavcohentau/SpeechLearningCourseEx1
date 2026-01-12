@@ -7,7 +7,7 @@ from scipy.io import wavfile
 from Ex2.Q1_func import LibriSpeechSoundObject, generate_microphone_signals, generate_room_impulse_responses, \
     generate_white_noise, mix_signals, plot_time_freq_analysis
 
-PLOT_FLAG = False
+PLOT_FLAG = True
 
 DATA_SET_NAME = "dev-clean"  # "dev-clean" or "test-clean"
 DATA_SET_PATH = fr"J:\My Drive\Courses\2026A\Signal Processing and Machine Learning for Speech\HW\HW1\SpeechLearningCourseEx1\data\{DATA_SET_NAME}\LibriSpeech"
