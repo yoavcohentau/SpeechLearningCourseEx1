@@ -121,9 +121,10 @@ def mix_signals(clean_signal, noise_signal, snr_db):
     scale_factor = np.sqrt(p_signal / (p_noise * (10 ** (snr_db / 10))))
 
     # Create noisy signal
-    noisy_signal = clean_signal + scale_factor * noise_signal
+    noise = scale_factor * noise_signal
+    noisy_signal = clean_signal + noise
 
-    return noisy_signal
+    return noisy_signal, noise
 
 
 def plot_time_freq_analysis(
