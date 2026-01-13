@@ -6,3 +6,4 @@ librosa
 tqdm
 pandas
 rir_generator
+torchmetrics
