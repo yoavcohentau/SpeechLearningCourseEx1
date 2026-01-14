@@ -4,8 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.io import wavfile
 
-from Ex2.Q1_func import LibriSpeechSoundObject, generate_microphone_signals, generate_room_impulse_responses, \
+from Ex2.Q1_func import generate_microphone_signals, generate_room_impulse_responses, \
     generate_white_noise, mix_signals, plot_time_freq_analysis
+from Ex2.librispeech_data_set_utils import LibriSpeechSoundObject
 
 PLOT_FLAG = True
 

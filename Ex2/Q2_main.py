@@ -5,7 +5,11 @@ from scipy.io import wavfile
 
 from Ex2.Q1_func import generate_room_impulse_responses, generate_microphone_signals, generate_white_noise, mix_signals, \
     plot_time_freq_analysis
-from Ex2.Q2_func import apply_dsb, apply_mvdr
+from Ex2.Q2_func import apply_dsb, apply_mvdr, AudioMetrics
+from Ex2.librispeech_data_set_utils import load_librispeech_objects_from_yaml
+from Ex2.temp import parse_and_plot_results
+
+PLOT_AND_SAVE_FLAG = False
 
 DATA_SET_NAME = "dev-clean"  # "dev-clean" or "test-clean"
 DATA_SET_PATH = fr"J:\My Drive\Courses\2026A\Signal Processing and Machine Learning for Speech\HW\HW1\SpeechLearningCourseEx1\data\{DATA_SET_NAME}\LibriSpeech"
@@ -15,8 +19,8 @@ def main_q2():
     # Setup Parameters (same as Q1)
     fs = 16000
     room_dim = [4, 5, 3]
-    T60 = 0.30
-    snr = 10
+    T60_vec = [0.15, 0.3]
+    snr_vec = [0, 10]
 
     mic_center = np.array([2, 1, 1.7])
     num_mics = 5
@@ -37,110 +41,145 @@ def main_q2():
     int_theta = np.deg2rad(150)
     interferer_pos = mic_center + 2.0 * np.array([np.cos(int_theta), np.sin(int_theta), 0])
 
+    # Initialize Metrics Calculator
+    metrics_tool = AudioMetrics(fs)
+
+    # Store results for aggregation
+    all_metrics = []
+
     # --- 2. Generate Signals (Calling Q1 functions) ---
     # NOTE: Assuming generate_room_impulse_responses & generate_microphone_signals exist from Q1
     # We need to recreate the noisy signals for T60=300ms, SNR=10dB
 
-    print("Generating RIRs and Signals...")
-    # Target RIR
-    target_rirs = generate_room_impulse_responses(fs, room_dim, mic_center, num_mics, mic_spacing, 30, 1.5, [T60])
-    target_path = rf'{DATA_SET_PATH}\{DATA_SET_NAME}\84\121123\84-121123-0000.flac'
-    target_sigs = generate_microphone_signals(target_path, fs, target_rirs)[T60]
-
-    # Interferer RIR
-    inter_rirs = generate_room_impulse_responses(fs, room_dim, mic_center, num_mics, mic_spacing, 150, 2.0, [T60])
-    inter_path = rf'{DATA_SET_PATH}\{DATA_SET_NAME}\84\121123\84-121123-0001.flac'
-    inter_sigs = generate_microphone_signals(inter_path, fs, inter_rirs)[T60]
-
-    # Cut to same length
-    min_len = min(target_sigs.shape[1], inter_sigs.shape[1])
-    target_sigs = target_sigs[:, :min_len]
-    inter_sigs = inter_sigs[:, :min_len]
-
-    # --- 3. Create Noisy Mixtures ---
-    # Case A: White Noise
-    white_noise = generate_white_noise(target_sigs.shape)
-    noisy_white, white_noise_scaled = mix_signals(target_sigs, white_noise, snr)
-
-    # Case B: Interferer
-    noisy_interferer, inter_noise_scaled = mix_signals(target_sigs, inter_sigs, snr)
-
-    # --- 4. Apply DSB (Question 2a) ---
-    ref_mic_index = 2  # Center mic (0, 1, 2, 3, 4)
-
-    print("Applying Delay-and-Sum Beamformer...")
-
-    # Apply to White Noise case
-    out_white = apply_dsb(noisy_white, fs, mic_positions, source_pos, ref_mic_index)
-
-    # Apply to Interferer case
-    out_inter = apply_dsb(noisy_interferer, fs, mic_positions, source_pos, ref_mic_index)
-
-    # Adjust length (ISTFT might add a few samples)
-    out_white = out_white[:min_len]
-    out_inter = out_inter[:min_len]
-
-    # --- 5. Visualization & Saving ---
-    # For comparison, we look at the Reference Mic (Index 2) of the noisy signal
-    ref_noisy_white = noisy_white[ref_mic_index]
-    ref_noisy_inter = noisy_interferer[ref_mic_index]
-    target_clean_ref = target_sigs[ref_mic_index]
-
-    os.makedirs("output_wavs_q2", exist_ok=True)
-
-    # Save noisy signals
-    wavfile.write("output_wavs_q2/white_in.wav", fs, ref_noisy_white.astype(np.float32))
-    wavfile.write("output_wavs_q2/interferer_in.wav", fs, ref_noisy_inter.astype(np.float32))
-
-    # Plot & Save - White Noise
-    print("Plotting White Noise Results...")
-    plot_time_freq_analysis(target_clean_ref, ref_noisy_white, out_white, fs, "(DSB Output - White Noise)")
-    wavfile.write("output_wavs_q2/dsb_white_out.wav", fs, out_white.astype(np.float32))
-
-    # Plot & Save - Interferer
-    print("Plotting Interferer Results...")
-    plot_time_freq_analysis(target_clean_ref, ref_noisy_inter, out_inter, fs, "(DSB Output - Interferer)")
-    wavfile.write("output_wavs_q2/dsb_interferer_out.wav", fs, out_inter.astype(np.float32))
-
-    print("Part A Done.")
-
-    # ... (End of Part A) ...
-
-    # --- Part B: MVDR Beamformer ---
-    print("\n--- Starting Part B: MVDR ---")
-
-    # Case 1: White Noise
-    print("Processing White Noise...")
-    mvdr_white_out = apply_mvdr(
-        noisy_signals=noisy_white,
-        noise_signals_only=white_noise_scaled,  # B.1: Estimate Covariance from this
-        fs=fs,
-        ref_mic_index=ref_mic_index
+    yaml_path = 'file_name_list.yaml'
+    signal_objects, interferer_objects = load_librispeech_objects_from_yaml(
+        yaml_path,
+        DATA_SET_PATH,
+        DATA_SET_NAME
     )
-    # Trim
-    mvdr_white_out = mvdr_white_out[:min_len]
+    for T60 in T60_vec:
+        for snr in snr_vec:
+            for example_idx, (signal_object, interferer_object) in enumerate(zip(signal_objects, interferer_objects)):
+                print(f'---------- example #{example_idx} ----------')
 
-    # Case 2: Interferer
-    print("Processing Interferer...")
-    mvdr_inter_out = apply_mvdr(
-        noisy_signals=noisy_interferer,
-        noise_signals_only=inter_noise_scaled,  # B.1: Estimate Covariance from this
-        fs=fs,
-        ref_mic_index=ref_mic_index
-    )
-    # Trim
-    mvdr_inter_out = mvdr_inter_out[:min_len]
+                metrics = {}
 
-    # --- Visualization & Saving ---
-    # White Noise
-    wavfile.write("output_wavs_q2/mvdr_white_out.wav", fs, mvdr_white_out.astype(np.float32))
-    plot_time_freq_analysis(target_clean_ref, ref_noisy_white, mvdr_white_out, fs, "(MVDR Output - White Noise)")
+                # Target RIR
+                target_rirs = generate_room_impulse_responses(fs, room_dim, mic_center, num_mics, mic_spacing, 30, 1.5, [T60])
+                target_path = signal_object.params2path()  # rf'{DATA_SET_PATH}\{DATA_SET_NAME}\84\121123\84-121123-0000.flac'
+                target_sigs = generate_microphone_signals(target_path, fs, target_rirs)[T60]
 
-    # Interferer
-    wavfile.write("output_wavs_q2/mvdr_interferer_out.wav", fs, mvdr_inter_out.astype(np.float32))
-    plot_time_freq_analysis(target_clean_ref, ref_noisy_inter, mvdr_inter_out, fs, "(MVDR Output - Interferer)")
+                # Interferer RIR
+                inter_rirs = generate_room_impulse_responses(fs, room_dim, mic_center, num_mics, mic_spacing, 150, 2.0, [T60])
+                inter_path = interferer_object.params2path()  # rf'{DATA_SET_PATH}\{DATA_SET_NAME}\84\121123\84-121123-0001.flac'
+                inter_sigs = generate_microphone_signals(inter_path, fs, inter_rirs)[T60]
 
-    print("Part B Done.")
+                # Cut to same length
+                min_len = min(target_sigs.shape[1], inter_sigs.shape[1])
+                target_sigs = target_sigs[:, :min_len]
+                inter_sigs = inter_sigs[:, :min_len]
+
+                # --- 3. Create Noisy Mixtures ---
+                # Case A: White Noise
+                white_noise = generate_white_noise(target_sigs.shape)
+                noisy_white, white_noise_scaled = mix_signals(target_sigs, white_noise, snr)
+
+                # Case B: Interferer
+                noisy_interferer, inter_noise_scaled = mix_signals(target_sigs, inter_sigs, snr)
+
+                # --- 4. Apply DSB (Question 2a) ---
+                ref_mic_index = 2  # Center mic (0, 1, 2, 3, 4)
+
+                # Apply to White Noise case
+                out_white = apply_dsb(noisy_white, fs, mic_positions, source_pos, ref_mic_index)
+
+                # Apply to Interferer case
+                out_inter = apply_dsb(noisy_interferer, fs, mic_positions, source_pos, ref_mic_index)
+
+                # Adjust length (ISTFT might add a few samples)
+                out_white = out_white[:min_len]
+                out_inter = out_inter[:min_len]
+
+                # --- 5. Visualization & Saving ---
+                # For comparison, we look at the Reference Mic (Index 2) of the noisy signal
+                ref_noisy_white = noisy_white[ref_mic_index]
+                ref_noisy_inter = noisy_interferer[ref_mic_index]
+                target_clean_ref = target_sigs[ref_mic_index]
+
+                # Save metrics
+                metrics[f'DSB-white-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_ref, out_white)
+                metrics[f'DSB-inter-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_ref, out_inter)
+
+                os.makedirs("output_wavs_q2", exist_ok=True)
+
+                if PLOT_AND_SAVE_FLAG:
+                    # Save noisy signals
+                    wavfile.write("output_wavs_q2/white_in.wav", fs, ref_noisy_white.astype(np.float32))
+                    wavfile.write("output_wavs_q2/interferer_in.wav", fs, ref_noisy_inter.astype(np.float32))
+
+                    # Plot & Save - White Noise
+                    plot_time_freq_analysis(target_clean_ref, ref_noisy_white, out_white, fs, "(DSB Output - White Noise)")
+                    wavfile.write("output_wavs_q2/dsb_white_out.wav", fs, out_white.astype(np.float32))
+
+                    # Plot & Save - Interferer
+                    plot_time_freq_analysis(target_clean_ref, ref_noisy_inter, out_inter, fs, "(DSB Output - Interferer)")
+                    wavfile.write("output_wavs_q2/dsb_interferer_out.wav", fs, out_inter.astype(np.float32))
+
+                print("Delay-and-Sum Done.")
+
+
+                # --- Part B: MVDR Beamformer ---
+                # Case 1: White Noise
+                mvdr_white_out = apply_mvdr(noisy_white, white_noise_scaled, fs
+                    # noisy_signals=noisy_white,
+                    # noise_signals_only=white_noise_scaled,  # B.1: Estimate Covariance from this
+                    # fs=fs,
+                    # ref_mic_index=ref_mic_index
+                )
+                # Trim
+                mvdr_white_out = mvdr_white_out[:min_len]
+
+                # Case 2: Interferer
+                mvdr_inter_out = apply_mvdr(noisy_interferer, inter_noise_scaled, fs
+                    # noisy_signals=noisy_interferer,
+                    # noise_signals_only=inter_noise_scaled,  # B.1: Estimate Covariance from this
+                    # fs=fs,
+                    # ref_mic_index=ref_mic_index
+                )
+                # Trim
+                mvdr_inter_out = mvdr_inter_out[:min_len]
+
+                # --- Visualization & Saving ---
+                # Save metrics
+                metrics[f'MVDR-white-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_ref, mvdr_white_out)
+                metrics[f'MVDR-inter-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_ref, mvdr_inter_out)
+
+                if PLOT_AND_SAVE_FLAG:
+                    # White Noise
+                    wavfile.write("output_wavs_q2/mvdr_white_out.wav", fs, mvdr_white_out.astype(np.float32))
+                    plot_time_freq_analysis(target_clean_ref, ref_noisy_white, mvdr_white_out, fs, "(MVDR Output - White Noise)")
+
+                    # Interferer
+                    wavfile.write("output_wavs_q2/mvdr_interferer_out.wav", fs, mvdr_inter_out.astype(np.float32))
+                    plot_time_freq_analysis(target_clean_ref, ref_noisy_inter, mvdr_inter_out, fs, "(MVDR Output - Interferer)")
+
+                print("MVDR Done.")
+
+                # Save metrics
+                metrics[f'Denoiser-white-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_ref, mvdr_white_out)
+                metrics[f'Denoiser-inter-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_ref, mvdr_inter_out)
+
+
+                all_metrics.append(metrics)
+
+                pass
+            pass
+        pass
+    parse_and_plot_results(all_metrics)
+    pass
+
+
+
 
 
 if __name__ == "__main__":

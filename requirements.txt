@@ -6,4 +6,6 @@ librosa
 tqdm
 pandas
 rir_generator
-torchmetrics
+torchmetrics[audio]
+pyyaml
+seaborn

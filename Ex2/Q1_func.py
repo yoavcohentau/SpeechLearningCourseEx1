@@ -6,30 +6,6 @@ import librosa.display
 from scipy.signal import fftconvolve
 
 
-class LibriSpeechSoundObject:
-    def __init__(self, data_set_path, data_set_name, speaker_id, chapter_number, utterance_number, file_ext='flac'):
-        self.data_set_path = data_set_path
-        self.data_set_name = data_set_name
-        self.speaker_id = speaker_id
-        self.chapter_number = chapter_number
-        self.utterance_number = utterance_number
-        self.file_ext = file_ext
-
-    def params2path(self):
-        file_name = f'{self.speaker_id}-{self.chapter_number}-{self.utterance_number}.{self.file_ext}'
-        file_path = rf'{self.data_set_path}\{self.data_set_name}\{self.speaker_id}\{self.chapter_number}\{file_name}'
-        return file_path
-
-    def read_file(self, fs):
-        path = self.params2path()
-        speech, fs_file = librosa.load(
-            path,
-            sr=fs,
-            mono=True
-        )
-        return speech, fs_file
-
-
 def generate_room_impulse_responses(
         fs,
         room_dim,
