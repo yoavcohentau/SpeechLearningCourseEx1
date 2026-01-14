@@ -61,36 +61,36 @@ def apply_dsb(mic_signals, fs, mic_positions, source_pos, ref_mic_index):
 #
 #
 # # --- Step 1: Estimate Noise Covariance ---
-def estimate_noise_covariance(noise_signals, fs=16000, nperseg=512, noverlap=256):
-    """
-    Estimates the noise covariance matrix (Phi_vv) based on noise signals.
-    Instruction B.1
-    """
-    num_mics = noise_signals.shape[0]
-
-    # Calculate STFT for noise signals
-    stft_list = []
-    for m in range(num_mics):
-        f, t, Zxx = stft(noise_signals[m], fs=fs, nperseg=nperseg, noverlap=noverlap)
-        stft_list.append(Zxx)
-
-    # Stack to (Freqs, Frames, Mics)
-    N_stft = np.stack(stft_list, axis=-1)
-
-    num_freqs = N_stft.shape[0]
-    num_frames = N_stft.shape[1]
-
-    # Initialize Covariance Matrix: (Freqs, Mics, Mics)
-    Phi_vv = np.zeros((num_freqs, num_mics, num_mics), dtype=np.complex64)
-
-    for f in range(num_freqs):
-        N_f = N_stft[f, :, :]  # (Frames, Mics)
-        # E[n * n^H] -> Average over frames
-        R = np.matmul(N_f.conj().T, N_f) / num_frames
-        # Ensure Hermitian symmetry
-        Phi_vv[f] = (R + R.conj().T) / 2
-
-    return Phi_vv
+# def estimate_noise_covariance(noise_signals, fs=16000, nperseg=512, noverlap=256):
+#     """
+#     Estimates the noise covariance matrix (Phi_vv) based on noise signals.
+#     Instruction B.1
+#     """
+#     num_mics = noise_signals.shape[0]
+#
+#     # Calculate STFT for noise signals
+#     stft_list = []
+#     for m in range(num_mics):
+#         f, t, Zxx = stft(noise_signals[m], fs=fs, nperseg=nperseg, noverlap=noverlap)
+#         stft_list.append(Zxx)
+#
+#     # Stack to (Freqs, Frames, Mics)
+#     N_stft = np.stack(stft_list, axis=-1)
+#
+#     num_freqs = N_stft.shape[0]
+#     num_frames = N_stft.shape[1]
+#
+#     # Initialize Covariance Matrix: (Freqs, Mics, Mics)
+#     Phi_vv = np.zeros((num_freqs, num_mics, num_mics), dtype=np.complex64)
+#
+#     for f in range(num_freqs):
+#         N_f = N_stft[f, :, :]  # (Frames, Mics)
+#         # E[n * n^H] -> Average over frames
+#         R = np.matmul(N_f.conj().T, N_f) / num_frames
+#         # Ensure Hermitian symmetry
+#         Phi_vv[f] = (R + R.conj().T) / 2
+#
+#     return Phi_vv
 #
 #
 # # --- Step 2: Estimate RTF using GEVD ---
@@ -251,25 +251,47 @@ def compute_stft(y, sr, win_len_msec=50, hop_len_msec=3, n_fft=None, plot=False,
         plt.title("STFT magnitude (dB)" + " " + title)
 
     return y_stft, y_stft_dB
-def covariance_matrix(stft_mat):
-    import numpy as np
+# def covariance_matrix(stft_mat):
+#     import numpy as np
+#
+#     X = np.asarray(stft_mat, dtype=np.complex128)  # (F,T,M)
+#     M, F, T = X.shape
+#     R = np.zeros((F, M, M), dtype=np.complex128)
+#
+#     for f in range(F):
+#         Xf = X[:, f, :]
+#         Rf = (Xf @ Xf.conj().T) / Xf.shape[1]
+#         R[f, :, :] = Rf
+#     return R
 
-    X = np.asarray(stft_mat, dtype=np.complex128)  # (F,T,M)
-    M, F, T = X.shape
-    R = np.zeros((F, M, M), dtype=np.complex128)
+# def covariance_matrix_vectorized(stft_mat):
+#     import numpy as np
+#
+#     X = np.asarray(stft_mat, dtype=np.complex128)
+#     M, F, T = X.shape
+#
+#     # שינוי סדר המימדים מ-(M, F, T) ל-(F, M, T)
+#     # כך נוכל להתייחס ל-F כאל "Batch" של מטריצות
+#     X = X.transpose(1, 0, 2)
+#
+#     # ביצוע כפל מטריצות: (F, M, T) @ (F, T, M) -> (F, M, M)
+#     # הפקודה swapaxes(-1, -2) מבצעת Transpose לשני המימדים האחרונים בלבד (M ו-T)
+#     R = (X @ X.conj().swapaxes(-1, -2)) / T
+#
+#     return R
 
-    for f in range(F):
-        Xf = X[:, f, :]
-        Rf = (Xf @ Xf.conj().T) / Xf.shape[1]
-        R[f, :, :] = Rf
+def covariance_matrix_einsum(stft_mat):
+    X = np.asarray(stft_mat, dtype=np.complex128)
+    T = X.shape[2]
+    R = np.einsum('mft,nft->fmn', X, X.conj()) / T
+
     return R
-
 
 def estimate_rtf_with_gevd(noisy_signal_stft, Su, ref_mic=2, eps=1e-6):
     import numpy as np
     from scipy.linalg import eigh
 
-    Sx = covariance_matrix(noisy_signal_stft)
+    Sx = covariance_matrix_einsum(noisy_signal_stft)
 
     Sx = np.asarray(Sx)
     Su = np.asarray(Su)
@@ -306,17 +328,12 @@ def mvdr_weights(Su, hf):
     return wf
 
 
-import numpy as np
 
 
-def _estimate_noise_covariance(noise_stft):
-    n_channels, n_freqs, n_frames = noise_stft.shape
-    X = np.transpose(noise_stft, (1, 0, 2))
-    cov_matrix = np.einsum('fmt,fnt->fmn', X, X.conj())
-    cov_matrix /= n_frames
-    cov_matrix = (cov_matrix + np.conj(np.transpose(cov_matrix, (0, 2, 1)))) / 2
 
-    return cov_matrix
+
+
+
 
 def apply_mvdr(mic_signals, noise, fs, win_length=800, hop_length=48):
     recording_stft = librosa.stft(mic_signals, n_fft=win_length, hop_length=hop_length, win_length=win_length)
@@ -325,8 +342,8 @@ def apply_mvdr(mic_signals, noise, fs, win_length=800, hop_length=48):
     # f, t, noise_stft = stft(noise, fs=sr, nperseg=800, noverlap=752)
     noise_stft = librosa.stft(noise, n_fft=win_length, hop_length=hop_length, win_length=win_length)
 
-    noise_cov = covariance_matrix(noise_stft)
-    # noise_cov = _estimate_noise_covariance(noise_stft)
+    # noise_cov = covariance_matrix(noise_stft)
+    noise_cov = covariance_matrix_einsum(noise_stft)
     # noise_cov = estimate_noise_covariance(noise, sr, nperseg=800, noverlap=752)
     h = estimate_rtf_with_gevd(recording_stft, noise_cov)
     w = mvdr_weights(noise_cov, h)
