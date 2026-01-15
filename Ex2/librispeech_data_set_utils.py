@@ -34,10 +34,8 @@ def parse_librispeech_filename(file_name):
 
 def create_librispeech_objects(file_name_list, data_set_path, data_set_name):
     objects = []
-
     for file_name in file_name_list:
         speaker_id, chapter_number, utterance_number = parse_librispeech_filename(file_name)
-
         obj = LibriSpeechSoundObject(
             data_set_path=data_set_path,
             data_set_name=data_set_name,
@@ -45,9 +43,7 @@ def create_librispeech_objects(file_name_list, data_set_path, data_set_name):
             chapter_number=chapter_number,
             utterance_number=utterance_number
         )
-
         objects.append(obj)
-
     return objects
 
 
