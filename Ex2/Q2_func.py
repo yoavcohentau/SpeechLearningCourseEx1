@@ -109,7 +109,7 @@ def _compute_mvdr_weights(noise_cov, rtf):
     return weights
 
 
-def apply_mvdr(mic_signals, noise, fs, win_length=800, hop_length=48):
+def apply_mvdr(mic_signals, noise, win_length=800, hop_length=48):
     mic_signals_stft = librosa.stft(mic_signals, n_fft=win_length, hop_length=hop_length, win_length=win_length)
     noise_stft = librosa.stft(noise, n_fft=win_length, hop_length=hop_length, win_length=win_length)
 

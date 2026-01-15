@@ -130,22 +130,12 @@ def main_q2():
 
                 # --- Part B: MVDR Beamformer ---
                 # Case 1: White Noise
-                mvdr_white_out = apply_mvdr(noisy_white, white_noise_scaled, fs
-                    # noisy_signals=noisy_white,
-                    # noise_signals_only=white_noise_scaled,  # B.1: Estimate Covariance from this
-                    # fs=fs,
-                    # ref_mic_index=ref_mic_index
-                )
+                mvdr_white_out = apply_mvdr(noisy_white, white_noise_scaled)
                 # Trim
                 mvdr_white_out = mvdr_white_out[:min_len]
 
                 # Case 2: Interferer
-                mvdr_inter_out = apply_mvdr(noisy_interferer, inter_noise_scaled, fs
-                    # noisy_signals=noisy_interferer,
-                    # noise_signals_only=inter_noise_scaled,  # B.1: Estimate Covariance from this
-                    # fs=fs,
-                    # ref_mic_index=ref_mic_index
-                )
+                mvdr_inter_out = apply_mvdr(noisy_interferer, inter_noise_scaled)
                 # Trim
                 mvdr_inter_out = mvdr_inter_out[:min_len]
 
