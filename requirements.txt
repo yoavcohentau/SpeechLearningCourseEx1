@@ -9,3 +9,4 @@ rir_generator
 torchmetrics[audio]
 pyyaml
 seaborn
+denoiser

@@ -6,6 +6,7 @@ from scipy.io import wavfile
 from Ex2.Q1_func import generate_room_impulse_responses, generate_microphone_signals, generate_white_noise, mix_signals, \
     plot_time_freq_analysis
 from Ex2.Q2_func import apply_dsb, apply_mvdr, AudioMetrics
+from Ex2.Q3_func import load_dns48_model, apply_deep_denoiser
 from Ex2.librispeech_data_set_utils import load_librispeech_objects_from_yaml
 from Ex2.temp import parse_and_plot_results
 
@@ -13,6 +14,8 @@ PLOT_AND_SAVE_FLAG = False
 
 DATA_SET_NAME = "dev-clean"  # "dev-clean" or "test-clean"
 DATA_SET_PATH = fr"J:\My Drive\Courses\2026A\Signal Processing and Machine Learning for Speech\HW\HW1\SpeechLearningCourseEx1\data\{DATA_SET_NAME}\LibriSpeech"
+
+DNS48_WEIGHTS_PATH = r"C:\Users\Yoav Cohen\Desktop\repositories\SpeechLearningCourseEx1\Ex2\denoiser_weights\dns48-11decc9d8e3f0998.th"
 
 
 def main_q2():
@@ -155,10 +158,25 @@ def main_q2():
 
                 print("MVDR Done.")
 
-                # Save metrics
-                metrics[f'Denoiser-white-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_ref, mvdr_white_out)
-                metrics[f'Denoiser-inter-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_ref, mvdr_inter_out)
 
+                # --- Q3: Denoise Net ---
+                dns_model = load_dns48_model(DNS48_WEIGHTS_PATH)
+                denoiser_white_out = apply_deep_denoiser(noisy_white[0], dns_model, fs)
+                denoiser_inter_out = apply_deep_denoiser(noisy_interferer[0], dns_model, fs)
+                print("Denoiser Done.")
+
+                # Save metrics
+                metrics[f'Denoiser-white-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_ref, denoiser_white_out)
+                metrics[f'Denoiser-inter-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_ref, denoiser_inter_out)
+
+                if PLOT_AND_SAVE_FLAG:
+                    # White Noise
+                    wavfile.write("output_wavs_q2/denoiser_white_out.wav", fs, mvdr_white_out.astype(np.float32))
+                    plot_time_freq_analysis(target_clean_ref, ref_noisy_white, denoiser_white_out, fs, "(Denoiser Output - White Noise)")
+
+                    # Interferer
+                    wavfile.write("output_wavs_q2/denoiser_interferer_out.wav", fs, mvdr_inter_out.astype(np.float32))
+                    plot_time_freq_analysis(target_clean_ref, ref_noisy_inter, denoiser_inter_out, fs, "(Denoiser Output - Interferer)")
 
                 all_metrics.append(metrics)
 
