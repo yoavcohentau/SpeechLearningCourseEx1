@@ -5,12 +5,11 @@ from scipy.io import wavfile
 
 from Ex2.Q1_func import generate_room_impulse_responses, generate_microphone_signals, generate_white_noise, mix_signals, \
     plot_time_freq_analysis
-from Ex2.Q2_func import apply_dsb, apply_mvdr, AudioMetrics
+from Ex2.Q2_func import apply_dsb, apply_mvdr, AudioMetrics, parse_and_plot_results
 from Ex2.Q3_func import load_dns48_model, apply_deep_denoiser
 from Ex2.librispeech_data_set_utils import load_librispeech_objects_from_yaml
-from Ex2.temp import parse_and_plot_results
 
-PLOT_AND_SAVE_FLAG = False
+PLOT_AND_SAVE_FLAG = True
 
 DATA_SET_NAME = "dev-clean"  # "dev-clean" or "test-clean"
 DATA_SET_PATH = fr"J:\My Drive\Courses\2026A\Signal Processing and Machine Learning for Speech\HW\HW1\SpeechLearningCourseEx1\data\{DATA_SET_NAME}\LibriSpeech"
@@ -69,12 +68,12 @@ def main_q2():
 
                 # Target RIR
                 target_rirs = generate_room_impulse_responses(fs, room_dim, mic_center, num_mics, mic_spacing, 30, 1.5, [T60])
-                target_path = signal_object.params2path()  # rf'{DATA_SET_PATH}\{DATA_SET_NAME}\84\121123\84-121123-0000.flac'
+                target_path = signal_object.params2path()
                 target_sigs = generate_microphone_signals(target_path, fs, target_rirs)[T60]
 
                 # Interferer RIR
                 inter_rirs = generate_room_impulse_responses(fs, room_dim, mic_center, num_mics, mic_spacing, 150, 2.0, [T60])
-                inter_path = interferer_object.params2path()  # rf'{DATA_SET_PATH}\{DATA_SET_NAME}\84\121123\84-121123-0001.flac'
+                inter_path = interferer_object.params2path()
                 inter_sigs = generate_microphone_signals(inter_path, fs, inter_rirs)[T60]
 
                 # Cut to same length
@@ -113,20 +112,24 @@ def main_q2():
                 metrics[f'DSB-white-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_ref, out_white)
                 metrics[f'DSB-inter-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_ref, out_inter)
 
-                os.makedirs("output_wavs_q2", exist_ok=True)
+                os.makedirs("output_folder_q2", exist_ok=True)
 
-                if PLOT_AND_SAVE_FLAG:
+                if PLOT_AND_SAVE_FLAG and example_idx == 0 and snr == 10 and T60 == 0.3:
                     # Save noisy signals
-                    wavfile.write("output_wavs_q2/white_in.wav", fs, ref_noisy_white.astype(np.float32))
-                    wavfile.write("output_wavs_q2/interferer_in.wav", fs, ref_noisy_inter.astype(np.float32))
+                    wavfile.write("output_folder_q2/white_in.wav", fs, ref_noisy_white.astype(np.float32))
+                    wavfile.write("output_folder_q2/interferer_in.wav", fs, ref_noisy_inter.astype(np.float32))
 
                     # Plot & Save - White Noise
-                    plot_time_freq_analysis(target_clean_ref, ref_noisy_white, out_white, fs, "(DSB Output - White Noise)")
-                    wavfile.write("output_wavs_q2/dsb_white_out.wav", fs, out_white.astype(np.float32))
+                    plot_time_freq_analysis(target_clean_ref, ref_noisy_white, out_white, fs,
+                                            f"(DSB Output - White Noise - T60={T60}s - snr={snr}dB)",
+                                            "Original", "Noisy", "Beamformer Out")
+                    wavfile.write("output_folder_q2/dsb_white_out.wav", fs, out_white.astype(np.float32))
 
                     # Plot & Save - Interferer
-                    plot_time_freq_analysis(target_clean_ref, ref_noisy_inter, out_inter, fs, "(DSB Output - Interferer)")
-                    wavfile.write("output_wavs_q2/dsb_interferer_out.wav", fs, out_inter.astype(np.float32))
+                    plot_time_freq_analysis(target_clean_ref, ref_noisy_inter, out_inter, fs,
+                                            f"(DSB Output - Interferer - T60={T60}s - snr={snr}dB)",
+                                            "Original", "Noisy", "Beamformer Out")
+                    wavfile.write("output_folder_q2/dsb_interferer_out.wav", fs, out_inter.astype(np.float32))
 
                 print("Delay-and-Sum Done.")
 
@@ -147,36 +150,48 @@ def main_q2():
                 metrics[f'MVDR-white-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_ref, mvdr_white_out)
                 metrics[f'MVDR-inter-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_ref, mvdr_inter_out)
 
-                if PLOT_AND_SAVE_FLAG:
+                if PLOT_AND_SAVE_FLAG and example_idx == 0 and snr == 10 and T60 == 0.3:
                     # White Noise
-                    wavfile.write("output_wavs_q2/mvdr_white_out.wav", fs, mvdr_white_out.astype(np.float32))
-                    plot_time_freq_analysis(target_clean_ref, ref_noisy_white, mvdr_white_out, fs, "(MVDR Output - White Noise)")
+                    wavfile.write("output_folder_q2/mvdr_white_out.wav", fs, mvdr_white_out.astype(np.float32))
+                    plot_time_freq_analysis(target_clean_ref, ref_noisy_white, mvdr_white_out, fs,
+                                            f"(MVDR Output - White Noise - T60={T60}s - snr={snr}dB)",
+                                            "Original", "Noisy", "Beamformer Out")
 
                     # Interferer
-                    wavfile.write("output_wavs_q2/mvdr_interferer_out.wav", fs, mvdr_inter_out.astype(np.float32))
-                    plot_time_freq_analysis(target_clean_ref, ref_noisy_inter, mvdr_inter_out, fs, "(MVDR Output - Interferer)")
+                    wavfile.write("output_folder_q2/mvdr_interferer_out.wav", fs, mvdr_inter_out.astype(np.float32))
+                    plot_time_freq_analysis(target_clean_ref, ref_noisy_inter, mvdr_inter_out, fs,
+                                            f"(MVDR Output - Interferer - T60={T60}s - snr={snr}dB)",
+                                            "Original", "Noisy", "Beamformer Out")
 
                 print("MVDR Done.")
 
 
                 # --- Q3: Denoise Net ---
                 dns_model = load_dns48_model(DNS48_WEIGHTS_PATH)
-                denoiser_white_out = apply_deep_denoiser(noisy_white[0], dns_model, fs)
-                denoiser_inter_out = apply_deep_denoiser(noisy_interferer[0], dns_model, fs)
+
+                first_mic_noisy_white = noisy_white[0]
+                first_mic_noisy_inter = noisy_interferer[0]
+                target_clean_first_mic = target_sigs[0]
+                denoiser_white_out = apply_deep_denoiser(first_mic_noisy_white, dns_model, fs)
+                denoiser_inter_out = apply_deep_denoiser(first_mic_noisy_inter, dns_model, fs)
                 print("Denoiser Done.")
 
                 # Save metrics
-                metrics[f'Denoiser-white-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_ref, denoiser_white_out)
-                metrics[f'Denoiser-inter-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_ref, denoiser_inter_out)
+                metrics[f'Denoiser-white-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_first_mic, denoiser_white_out)
+                metrics[f'Denoiser-inter-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_first_mic, denoiser_inter_out)
 
-                if PLOT_AND_SAVE_FLAG:
+                if PLOT_AND_SAVE_FLAG and example_idx == 0 and snr == 10 and T60 == 0.3:
                     # White Noise
-                    wavfile.write("output_wavs_q2/denoiser_white_out.wav", fs, mvdr_white_out.astype(np.float32))
-                    plot_time_freq_analysis(target_clean_ref, ref_noisy_white, denoiser_white_out, fs, "(Denoiser Output - White Noise)")
+                    wavfile.write("output_folder_q2/denoiser_white_out.wav", fs, mvdr_white_out.astype(np.float32))
+                    plot_time_freq_analysis(target_clean_ref, ref_noisy_white, denoiser_white_out, fs,
+                                            f"(Denoiser Output - White Noise - T60={T60}s - snr={snr}dB)",
+                                            "Original", "Noisy", "Beamformer Out")
 
                     # Interferer
-                    wavfile.write("output_wavs_q2/denoiser_interferer_out.wav", fs, mvdr_inter_out.astype(np.float32))
-                    plot_time_freq_analysis(target_clean_ref, ref_noisy_inter, denoiser_inter_out, fs, "(Denoiser Output - Interferer)")
+                    wavfile.write("output_folder_q2/denoiser_interferer_out.wav", fs, mvdr_inter_out.astype(np.float32))
+                    plot_time_freq_analysis(target_clean_ref, ref_noisy_inter, denoiser_inter_out, fs,
+                                            f"(Denoiser Output - Interferer - T60={T60}s - snr={snr}dB)",
+                                            "Original", "Noisy", "Beamformer Out")
 
                 all_metrics.append(metrics)
 
@@ -185,9 +200,6 @@ def main_q2():
         pass
     parse_and_plot_results(all_metrics)
     pass
-
-
-
 
 
 if __name__ == "__main__":

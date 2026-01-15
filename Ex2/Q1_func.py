@@ -76,12 +76,6 @@ def generate_microphone_signals(
     return mic_signals
 
 
-def generate_white_noise(signal_shape):
-    # generate normal distribution samples (mean=0, std=1)
-    noise = np.random.randn(*signal_shape)
-    return noise
-
-
 def mix_signals(clean_signal, noise_signal, snr_db):
     # Calculate power of clean signal and noise
     p_signal = np.mean(clean_signal ** 2)
@@ -103,36 +97,37 @@ def mix_signals(clean_signal, noise_signal, snr_db):
     return noisy_signal, noise
 
 
+def generate_white_noise(signal_shape):
+    # generate normal distribution samples (mean=0, std=1)
+    noise = np.random.randn(*signal_shape)
+    return noise
+
+
 def plot_time_freq_analysis(
-        original_signal,
-        clean_rev_signal,
-        noisy_rev_signal,
-        fs,
-        title_suffix=""
+        signal_1,
+        signal_2,
+        signal_3,
+        fs=16000,
+        title_suffix="",
+        legend_1='Original',
+        legend_2='Clean Reverberant',
+        legend_3='Noisy Reverberant'
 ):
-    """
-    Plots time domain (overlaid) and Spectrograms (STFT) for Original, Clean Reverberant, and Noisy Reverberant signals.
-    """
-    # 1. Prepare Time Axis
-    # Ensure all signals are same length for visualization logic if needed,
-    # though usually handled by caller. Taking the minimum length for safe plotting.
-    min_len = min(len(original_signal), len(clean_rev_signal), len(noisy_rev_signal))
-    original_signal = original_signal[:min_len]
-    clean_rev_signal = clean_rev_signal[:min_len]
-    noisy_rev_signal = noisy_rev_signal[:min_len]
+    min_len = min(len(signal_1), len(signal_2), len(signal_3))
+    signal_1 = signal_1[:min_len]
+    signal_2 = signal_2[:min_len]
+    signal_3 = signal_3[:min_len]
 
     t = np.arange(min_len) / fs
 
-    # 2. Setup Figure Grid
-    # We will use a grid: Top row for Time Domain (wide), Bottom row for 3 Spectrograms
     fig = plt.figure(figsize=(13, 6))
     gs = fig.add_gridspec(2, 3, height_ratios=[1, 1.5], hspace=0.3)
 
     # --- Time Domain Plot (Top Row) ---
     ax_time = fig.add_subplot(gs[0, :])
-    ax_time.plot(t, original_signal, label="Original", alpha=0.8, color='blue', linestyle='--', linewidth=1)
-    ax_time.plot(t, clean_rev_signal, label="Clean Reverberant", alpha=0.7, color='green', linewidth=1)
-    ax_time.plot(t, noisy_rev_signal, label="Noisy Reverberant", alpha=0.5, color='red', linewidth=1)
+    ax_time.plot(t, signal_1, label=legend_1, alpha=0.8, color='blue', linestyle='--', linewidth=1)
+    ax_time.plot(t, signal_2, label=legend_2, alpha=0.7, color='green', linewidth=1)
+    ax_time.plot(t, signal_3, label=legend_3, alpha=0.5, color='red', linewidth=1)
 
     ax_time.set_title(f"Time Domain Signals {title_suffix}")
     ax_time.set_xlabel("Time [s]")
@@ -144,32 +139,31 @@ def plot_time_freq_analysis(
     # --- STFT Helper Function ---
     def plot_spectrogram(signal, ax, title):
         # Compute STFT
-        # n_fft: window size, hop_length: step size
         D = librosa.stft(signal, n_fft=512, hop_length=160)
-        # Convert to dB (log scale)
+        # Convert to dB
         S_db = librosa.amplitude_to_db(np.abs(D), ref=np.max)
-
         # Plot
         img = librosa.display.specshow(S_db, sr=fs, hop_length=160, x_axis='time', y_axis='hz', ax=ax, cmap='magma')
         ax.set_title(title)
         return img
 
-    # --- Spectrograms (Bottom Row) ---
-    # 1. Original Dry
+    # --- Spectrograms Plot (Bottom Row) ---
+    # signal_1
     ax_orig = fig.add_subplot(gs[1, 0])
-    plot_spectrogram(original_signal, ax_orig, "Original")
+    plot_spectrogram(signal_1, ax_orig, legend_1)
 
-    # 2. Clean Reverberant
+    # signal_2
     ax_clean = fig.add_subplot(gs[1, 1])
-    plot_spectrogram(clean_rev_signal, ax_clean, "Clean Reverberant")
+    plot_spectrogram(signal_2, ax_clean, legend_2)
 
-    # 3. Noisy Reverberant
+    # signal_3
     ax_noisy = fig.add_subplot(gs[1, 2])
-    img = plot_spectrogram(noisy_rev_signal, ax_noisy, "Noisy Reverberant")
+    img = plot_spectrogram(signal_3, ax_noisy, legend_3)
 
-    # Add Colorbar (shared based on the last plot, but represents range roughly for all)
+    # Add Colorbar
     fig.colorbar(img, ax=[ax_orig, ax_clean, ax_noisy], format='%+2.0f dB', label='Magnitude [dB]')
 
     plt.suptitle(f"Analysis: {title_suffix}", fontsize=16)
     # plt.tight_layout() # Sometimes conflicts with constrained layouts, used manual spacing above
     plt.show()
+

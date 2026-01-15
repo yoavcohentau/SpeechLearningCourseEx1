@@ -1,5 +1,7 @@
 import librosa
 import numpy as np
+import seaborn as sns
+from matplotlib import pyplot as plt
 from scipy.signal import stft, istft
 
 
@@ -222,3 +224,129 @@ def plot_aggregate_results(df_results):
     plt.suptitle("Beamforming Performance Comparison (Mean ± SD)", fontsize=16)
     plt.tight_layout()
     plt.show()
+
+
+def parse_and_plot_results(all_metrics):
+    """
+    Parses a LIST of dictionaries.
+    Each dictionary contains keys formatted as: 'Algo-NoiseType-SNR-T60-ExampleIdx'
+    """
+    # --- שלב 1: חילוץ הנתונים לטבלה שטוחה ---
+    parsed_data = []
+
+    # רצים על הרשימה הראשית (כל איבר הוא מילון של דוגמה אחת)
+    for example_dict in all_metrics:
+        # רצים על המפתחות בתוך המילון של הדוגמה הנוכחית
+        for key, scores in example_dict.items():
+            # פירוק המפתח: f'{Algo}-{Noise}-{snr}-{T60}-{example_idx}'
+            # דוגמה מהתמונה: 'DSB-white-0-0.15-0'
+            parts = key.split('-')
+
+            # הגנה בסיסית
+            if len(parts) < 5:
+                continue
+
+            algo = parts[0]  # DSB
+            noise_type = parts[1]  # white
+            snr = float(parts[2])  # 0 (ממירים למספר למיון)
+            t60 = float(parts[3])  # 0.15 (ממירים למספר למיון)
+
+            # יצירת שורות לטבלה (שורה לכל מדד כדי שיהיה נוח לצייר)
+            # PESQ
+            parsed_data.append({
+                'Algorithm': algo,
+                'NoiseType': noise_type,
+                'SNR': snr,
+                'T60': t60,
+                'Condition': f"T60={t60}, SNR={int(snr)}dB",  # עמודת עזר לציר X
+                'Metric': 'PESQ',
+                'Score': scores.get('PESQ', 0)
+            })
+            # ESTOI
+            parsed_data.append({
+                'Algorithm': algo,
+                'NoiseType': noise_type,
+                'SNR': snr,
+                'T60': t60,
+                'Condition': f"T60={t60}, SNR={int(snr)}dB",
+                'Metric': 'ESTOI',
+                'Score': scores.get('ESTOI', 0)
+            })
+            # SI_SDR
+            parsed_data.append({
+                'Algorithm': algo,
+                'NoiseType': noise_type,
+                'SNR': snr,
+                'T60': t60,
+                'Condition': f"T60={t60}, SNR={int(snr)}dB",
+                'Metric': 'SI_SDR',
+                'Score': scores.get('SI_SDR', -np.inf)
+            })
+
+    # המרה ל-DataFrame של Pandas
+    df = pd.DataFrame(parsed_data)
+
+    # מיון לפי T60 ו-SNR כדי שציר ה-X יהיה מסודר הגיונית
+    df.sort_values(by=['T60', 'SNR'], inplace=True)
+
+    df.to_csv('metrics.csv', index=False)
+
+    # --- שלב 2: ציור הגרפים ---
+
+    # הגדרת סגנון
+    sns.set_theme(style="whitegrid")
+
+    # יצירת גריד של גרפים:
+    # שורות (row) = מדדים (PESQ, ESTOI, SI_SDR)
+    # עמודות (col) = סוג רעש (white, inter)
+    g = sns.catplot(
+        data=df,
+        kind="bar",
+        x="Condition",  # ציר ה-X: התנאים (T60, SNR)
+        y="Score",  # ציר ה-Y: הציון (הממוצע מחושב אוטומטית ע"י seaborn)
+        hue="Algorithm",  # צבעים: האלגוריתמים (DSB, MVDR, Denoiser)
+        col="NoiseType",  # עמודה לכל סוג רעש
+        row="Metric",  # שורה לכל מדד
+        height=3.5,
+        aspect=1.6,
+        sharey=False,  # ציר Y נפרד לכל שורה (כי הסקאלות שונות)
+        palette="viridis",  # צבעים יפים
+        errorbar='sd',  # מציג את סטיית התקן כקו שחור (אופציונלי)
+        capsize=0.1
+    )
+
+    # --- חלק התיקון ---
+
+    # כותרות ועיצוב
+    # top=0.9: משאיר מקום לכותרת הראשית
+    # bottom=0.2: משאיר מקום למטה לכיתובים המסובבים (זה התיקון החשוב!)
+    # hspace=0.3: מוסיף קצת מרווח אנכי בין השורות של הגרפים כדי שהכיתובים לא יתנגשו
+    g.fig.subplots_adjust(top=0.9, bottom=0.2, hspace=0.4)
+
+    g.fig.suptitle('Metrics: Averaged over all Examples', fontsize=16)
+
+    g.set_axis_labels("", "Score")
+    g.set_titles("{row_name} | {col_name} Noise")
+
+    # סיבוב התוויות למטה כדי שיהיה קריא
+    for ax in g.axes.flat:
+        for label in ax.get_xticklabels():
+            label.set_rotation(25)
+            label.set_ha('right')
+
+    plt.show()
+
+    # # כותרות ועיצוב
+    # g.fig.subplots_adjust(top=0.9)
+    # g.fig.suptitle('Performance Comparison: Averaged over all Examples', fontsize=16)
+    #
+    # g.set_axis_labels("", "Score")
+    # g.set_titles("{row_name} | {col_name} Noise")
+    #
+    # # סיבוב התוויות למטה כדי שיהיה קריא
+    # for ax in g.axes.flat:
+    #     for label in ax.get_xticklabels():
+    #         label.set_rotation(25)
+    #         label.set_ha('right')
+    #
+    # plt.show()

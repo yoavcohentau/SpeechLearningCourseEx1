@@ -48,12 +48,16 @@ def main_q1():
 
     # Plot time-domain RIR for the first microphone
     if PLOT_FLAG:
-        for T60_val in T60_values:
+        colors = ['b', 'r']
+        for i, T60_val in enumerate(T60_values):
             rir_mic1 = target_rirs[T60_val][0]
-            rir_mic1 = rir_mic1 / np.max(np.abs(rir_mic1))  # Normalize for visualization
+            rir_mic1 = rir_mic1 / np.max(np.abs(rir_mic1))
             t = np.arange(len(rir_mic1)) / fs
-
-            plt.plot(t, rir_mic1, label=f"T60 = {int(T60_val * 1000)} ms")
+            plt.plot(t, rir_mic1,
+                     label=f"T60 = {int(T60_val * 1000)} ms",
+                     alpha=0.6,
+                     linewidth=0.5,
+                     color=colors[i % len(colors)])
 
         plt.xlabel("Time [s]")
         plt.ylabel("Normalized amplitude")
@@ -118,7 +122,7 @@ def main_q1():
     original_target_sound, _ = target_sound_obj.read_file(fs=fs)
 
     # Create output directory for wav files
-    output_dir = "output_wavs"
+    output_dir = "output_folder_q1"
     os.makedirs(output_dir, exist_ok=True)
 
     # We focus on T60 = 300ms (0.3s) and SNR = 10dB for the specific plots requested in section (d)
@@ -133,7 +137,7 @@ def main_q1():
 
             # Type 1 - White Gaussian Noise
             white_noise = generate_white_noise(clean_sig.shape)
-            noisy_white = mix_signals(clean_sig, white_noise, snr)
+            noisy_white, _ = mix_signals(clean_sig, white_noise, snr)
 
             # Type 2 - Interferer Noise
             inter_sig = interferer_mic_signals[T60]
@@ -143,7 +147,7 @@ def main_q1():
             clean_sig_trunc = clean_sig[:, :min_len]
             inter_sig_trunc = inter_sig[:, :min_len]
 
-            noisy_interferer = mix_signals(clean_sig_trunc, inter_sig_trunc, snr)
+            noisy_interferer, _ = mix_signals(clean_sig_trunc, inter_sig_trunc, snr)
 
             # Section (c) - plot
             if T60 == plot_T60 and snr == plot_SNR:  # Only for T60=300ms and SNR=10dB
