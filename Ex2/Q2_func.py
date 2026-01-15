@@ -1,12 +1,18 @@
 import librosa
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import seaborn as sns
-from matplotlib import pyplot as plt
+import torch
+from scipy.linalg import eigh
+from scipy.linalg import pinv
 from scipy.signal import stft, istft
+from torchmetrics.audio import PerceptualEvaluationSpeechQuality
+from torchmetrics.audio import ScaleInvariantSignalDistortionRatio
+from torchmetrics.audio import ShortTimeObjectiveIntelligibility
 
 
 # ---------- DSB ----------
-
 def compute_steering_vector(mic_positions, source_pos, freqs, ref_mic_index=None, c=343):
     I = len(mic_positions)
 
@@ -54,11 +60,8 @@ def apply_dsb(mic_signals, fs, mic_positions, source_pos, ref_mic_index):
     return out_signal
 
 
-
 # ---------- MVDR ----------
-
-
-def estimate_noise_cov_matrix(stft_mat):
+def estimate_cov_matrix(stft_mat):
     X = np.asarray(stft_mat, dtype=np.complex128)
     t = X.shape[2]
     R = np.einsum('mft,nft->fmn', X, X.conj()) / t
@@ -66,12 +69,8 @@ def estimate_noise_cov_matrix(stft_mat):
     return R
 
 
-import numpy as np
-from scipy.linalg import eigh
-
-
 def estimate_rtf_using_gevd(noisy_stft, noise_cov, ref_mic=2):
-    R_y = estimate_noise_cov_matrix(noisy_stft)
+    R_y = estimate_cov_matrix(noisy_stft)
 
     # find the rtf per frequency
     n_freqs, n_channels = R_y.shape[0], R_y.shape[1]
@@ -84,12 +83,6 @@ def estimate_rtf_using_gevd(noisy_stft, noise_cov, ref_mic=2):
         rtf[:, f] = h / (h[ref_mic] + 1e-12)  # normalize by ref mic
 
     return rtf
-
-
-from scipy.linalg import inv
-
-import numpy as np
-from scipy.linalg import pinv
 
 
 def _compute_mvdr_weights(noise_cov, rtf):
@@ -115,7 +108,7 @@ def apply_mvdr(mic_signals, noise, win_length=800, hop_length=48):
     mic_signals_stft = librosa.stft(mic_signals, n_fft=win_length, hop_length=hop_length, win_length=win_length)
     noise_stft = librosa.stft(noise, n_fft=win_length, hop_length=hop_length, win_length=win_length)
 
-    noise_cov = estimate_noise_cov_matrix(noise_stft)
+    noise_cov = estimate_cov_matrix(noise_stft)
 
     rtf = estimate_rtf_using_gevd(mic_signals_stft, noise_cov)
     # w = mvdr_weights(noise_cov, rtf)
@@ -134,16 +127,7 @@ def apply_mvdr(mic_signals, noise, win_length=800, hop_length=48):
     return np.real(out_mvdr)
 
 
-
 # ---------- Metrics ----------
-import torch
-from torchmetrics.audio import PerceptualEvaluationSpeechQuality
-from torchmetrics.audio import ShortTimeObjectiveIntelligibility
-from torchmetrics.audio import ScaleInvariantSignalDistortionRatio
-import numpy as np
-import matplotlib.pyplot as plt
-
-
 class AudioMetrics:
     def __init__(self, fs=16000):
         self.fs = fs
@@ -195,35 +179,6 @@ class AudioMetrics:
             results['SI_SDR'] = -np.inf
 
         return results
-
-
-import pandas as pd
-import matplotlib.pyplot as plt
-
-
-def plot_aggregate_results(df_results):
-    """
-    Plots bar charts using Matplotlib and Pandas.
-    """
-    metrics = ['PESQ', 'ESTOI', 'SI_SDR']
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-
-    for i, metric in enumerate(metrics):
-        # Filter and Calculate Stats
-        df_metric = df_results[df_results['Metric'] == metric]
-        means = df_metric.groupby(['NoiseType', 'Algorithm'])['Score'].mean().unstack()
-        stds = df_metric.groupby(['NoiseType', 'Algorithm'])['Score'].std().unstack()
-
-        # Plot
-        means.plot(kind='bar', yerr=stds, ax=axes[i], capsize=4, rot=0, alpha=0.8)
-
-        axes[i].set_title(f"{metric}")
-        axes[i].set_ylabel("Score")
-        axes[i].grid(axis='y', linestyle='--', alpha=0.5)
-
-    plt.suptitle("Beamforming Performance Comparison (Mean ± SD)", fontsize=16)
-    plt.tight_layout()
-    plt.show()
 
 
 def parse_and_plot_results(all_metrics):
@@ -350,3 +305,30 @@ def parse_and_plot_results(all_metrics):
     #         label.set_ha('right')
     #
     # plt.show()
+
+
+# def plot_aggregate_results(df_results):
+#     """
+#     Plots bar charts using Matplotlib and Pandas.
+#     """
+#     metrics = ['PESQ', 'ESTOI', 'SI_SDR']
+#     fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+#
+#     for i, metric in enumerate(metrics):
+#         # Filter and Calculate Stats
+#         df_metric = df_results[df_results['Metric'] == metric]
+#         means = df_metric.groupby(['NoiseType', 'Algorithm'])['Score'].mean().unstack()
+#         stds = df_metric.groupby(['NoiseType', 'Algorithm'])['Score'].std().unstack()
+#
+#         # Plot
+#         means.plot(kind='bar', yerr=stds, ax=axes[i], capsize=4, rot=0, alpha=0.8)
+#
+#         axes[i].set_title(f"{metric}")
+#         axes[i].set_ylabel("Score")
+#         axes[i].grid(axis='y', linestyle='--', alpha=0.5)
+#
+#     plt.suptitle("Beamforming Performance Comparison (Mean ± SD)", fontsize=16)
+#     plt.tight_layout()
+#     plt.show()
+
+

@@ -28,7 +28,7 @@ def main_q2():
     num_mics = 5
     mic_spacing = 0.05
 
-    # Define Mic Positions (needed for Q2)
+    # Mics Positions
     mic_positions = np.array([
         mic_center + np.array([(i - (num_mics - 1) / 2) * mic_spacing, 0, 0])
         for i in range(num_mics)
@@ -45,14 +45,9 @@ def main_q2():
 
     # Initialize Metrics Calculator
     metrics_tool = AudioMetrics(fs)
+    all_metrics = []  # Store results for aggregation
 
-    # Store results for aggregation
-    all_metrics = []
-
-    # --- 2. Generate Signals (Calling Q1 functions) ---
-    # NOTE: Assuming generate_room_impulse_responses & generate_microphone_signals exist from Q1
-    # We need to recreate the noisy signals for T60=300ms, SNR=10dB
-
+    # load samples file names
     yaml_path = 'file_name_list.yaml'
     signal_objects, interferer_objects = load_librispeech_objects_from_yaml(
         yaml_path,
@@ -81,7 +76,7 @@ def main_q2():
                 target_sigs = target_sigs[:, :min_len]
                 inter_sigs = inter_sigs[:, :min_len]
 
-                # --- 3. Create Noisy Mixtures ---
+                # add Noise
                 # Case A: White Noise
                 white_noise = generate_white_noise(target_sigs.shape)
                 noisy_white, white_noise_scaled = mix_signals(target_sigs, white_noise, snr)
@@ -89,8 +84,8 @@ def main_q2():
                 # Case B: Interferer
                 noisy_interferer, inter_noise_scaled = mix_signals(target_sigs, inter_sigs, snr)
 
-                # --- 4. Apply DSB (Question 2a) ---
-                ref_mic_index = 2  # Center mic (0, 1, 2, 3, 4)
+                # --- (a) DSB ---
+                ref_mic_index = 2  # Center mic
 
                 # Apply to White Noise case
                 out_white = apply_dsb(noisy_white, fs, mic_positions, source_pos, ref_mic_index)
@@ -98,12 +93,12 @@ def main_q2():
                 # Apply to Interferer case
                 out_inter = apply_dsb(noisy_interferer, fs, mic_positions, source_pos, ref_mic_index)
 
-                # Adjust length (ISTFT might add a few samples)
+                # Adjust length
                 out_white = out_white[:min_len]
                 out_inter = out_inter[:min_len]
 
-                # --- 5. Visualization & Saving ---
-                # For comparison, we look at the Reference Mic (Index 2) of the noisy signal
+                # Plot & Save
+                # For comparison (DSB and MVDR), we look at the Reference Mic (Index 2) of the noisy signal
                 ref_noisy_white = noisy_white[ref_mic_index]
                 ref_noisy_inter = noisy_interferer[ref_mic_index]
                 target_clean_ref = target_sigs[ref_mic_index]
@@ -119,13 +114,13 @@ def main_q2():
                     wavfile.write("output_folder_q2/white_in.wav", fs, ref_noisy_white.astype(np.float32))
                     wavfile.write("output_folder_q2/interferer_in.wav", fs, ref_noisy_inter.astype(np.float32))
 
-                    # Plot & Save - White Noise
+                    # White Noise
                     plot_time_freq_analysis(target_clean_ref, ref_noisy_white, out_white, fs,
                                             f"(DSB Output - White Noise - T60={T60}s - snr={snr}dB)",
                                             "Original", "Noisy", "Beamformer Out")
                     wavfile.write("output_folder_q2/dsb_white_out.wav", fs, out_white.astype(np.float32))
 
-                    # Plot & Save - Interferer
+                    # Interferer
                     plot_time_freq_analysis(target_clean_ref, ref_noisy_inter, out_inter, fs,
                                             f"(DSB Output - Interferer - T60={T60}s - snr={snr}dB)",
                                             "Original", "Noisy", "Beamformer Out")
@@ -134,18 +129,16 @@ def main_q2():
                 print("Delay-and-Sum Done.")
 
 
-                # --- Part B: MVDR Beamformer ---
+                # --- (b) MVDR ---
                 # Case 1: White Noise
                 mvdr_white_out = apply_mvdr(noisy_white, white_noise_scaled)
-                # Trim
                 mvdr_white_out = mvdr_white_out[:min_len]
 
                 # Case 2: Interferer
                 mvdr_inter_out = apply_mvdr(noisy_interferer, inter_noise_scaled)
-                # Trim
                 mvdr_inter_out = mvdr_inter_out[:min_len]
 
-                # --- Visualization & Saving ---
+                # --- Plot & Save ---
                 # Save metrics
                 metrics[f'MVDR-white-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_ref, mvdr_white_out)
                 metrics[f'MVDR-inter-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_ref, mvdr_inter_out)
@@ -166,16 +159,24 @@ def main_q2():
                 print("MVDR Done.")
 
 
-                # --- Q3: Denoise Net ---
+                # --- Q3 - Denoise Net ---
+                # load weights
                 dns_model = load_dns48_model(DNS48_WEIGHTS_PATH)
 
+                # now the reference is mic_0 as required in Q3
                 first_mic_noisy_white = noisy_white[0]
                 first_mic_noisy_inter = noisy_interferer[0]
                 target_clean_first_mic = target_sigs[0]
+
+                # Apply denoiser net
+                # White Noise
                 denoiser_white_out = apply_deep_denoiser(first_mic_noisy_white, dns_model, fs)
+                # Interferer
                 denoiser_inter_out = apply_deep_denoiser(first_mic_noisy_inter, dns_model, fs)
+
                 print("Denoiser Done.")
 
+                # --- Plot & Save ---
                 # Save metrics
                 metrics[f'Denoiser-white-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_first_mic, denoiser_white_out)
                 metrics[f'Denoiser-inter-{snr}-{T60}-{example_idx}'] = metrics_tool.compute_all(target_clean_first_mic, denoiser_inter_out)
@@ -195,11 +196,7 @@ def main_q2():
 
                 all_metrics.append(metrics)
 
-                pass
-            pass
-        pass
     parse_and_plot_results(all_metrics)
-    pass
 
 
 if __name__ == "__main__":
