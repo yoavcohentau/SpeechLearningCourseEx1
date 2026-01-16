@@ -69,7 +69,9 @@ def generate_microphone_signals(
         X = np.zeros((num_mics, signal_length), dtype=np.float32)
         for m in range(num_mics):
             # Convolve clean speech with the m RIR
-            X[m, :] = fftconvolve(speech, rir_list[m], mode='same')
+            # X[m, :] = fftconvolve(speech, rir_list[m], mode='same')
+            x_fft = fftconvolve(speech, rir_list[m])
+            X[m, :] = x_fft[:signal_length]
 
         mic_signals[T60] = X
 

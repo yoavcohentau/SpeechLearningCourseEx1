@@ -9,6 +9,7 @@ from Ex2.Q1_func import generate_microphone_signals, generate_room_impulse_respo
 from Ex2.librispeech_data_set_utils import LibriSpeechSoundObject
 
 PLOT_FLAG = True
+ORIGINAL_SIGNAL_FACTOR = 5
 
 DATA_SET_NAME = "dev-clean"  # "dev-clean" or "test-clean"
 DATA_SET_PATH = fr"J:\My Drive\Courses\2026A\Signal Processing and Machine Learning for Speech\HW\HW1\SpeechLearningCourseEx1\data\{DATA_SET_NAME}\LibriSpeech"
@@ -83,14 +84,20 @@ def main_q1():
     )
 
     if PLOT_FLAG:
-        T60_test = T60_values[1]
         mic_index = 0
 
-        plt.plot(target_mic_signals[T60_test][mic_index])
-        plt.title("Reverberant speech – Microphone 1")
-        plt.xlabel("Samples")
-        plt.ylabel("Amplitude")
-        plt.grid()
+        fig, axes = plt.subplots(1, 2, figsize=(8, 4), sharey=True)
+        fig.suptitle(f"Reverberant Speech – Microphone {mic_index + 1}", fontsize=16)
+        for i, t60_val in enumerate(T60_values):
+            signal = target_mic_signals[t60_val][mic_index]
+            axes[i].plot(signal)
+            axes[i].set_title(f"T60 = {int(t60_val * 1000)} ms")
+            axes[i].set_xlabel("Samples")
+            axes[i].grid(True, alpha=0.3)
+            if i == 0:
+                axes[i].set_ylabel("Amplitude")
+
+        plt.tight_layout()
         plt.show()
 
     # Section (c)
@@ -153,7 +160,7 @@ def main_q1():
             if T60 == plot_T60 and snr == plot_SNR:  # Only for T60=300ms and SNR=10dB
                 # 1 - White Noise (mic 1)
                 plot_time_freq_analysis(
-                    original_target_sound[:clean_sig.shape[1]],
+                    original_target_sound[:clean_sig.shape[1]]/ORIGINAL_SIGNAL_FACTOR,
                     clean_sig[0, :],
                     noisy_white[0, :],
                     fs,
@@ -162,7 +169,7 @@ def main_q1():
 
                 # 2 - Interferer (mic 1)
                 plot_time_freq_analysis(
-                    original_target_sound[:min_len],
+                    original_target_sound[:min_len]/ORIGINAL_SIGNAL_FACTOR,
                     clean_sig_trunc[0, :],
                     noisy_interferer[0, :],
                     fs,
