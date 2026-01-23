@@ -4,7 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.io import wavfile
 
-from Ex3.Q1_func import generate_room_impulse_responses, generate_microphone_signals, apply_srp_phat
+from Ex3.Q1_func import generate_room_impulse_responses, generate_microphone_signals, apply_srp_phat, \
+    generate_white_noise, mix_signals, apply_music
 from Ex3.librispeech_data_set_utils import LibriSpeechSoundObject
 
 PLOT_FLAG = False
@@ -23,9 +24,7 @@ def main_q1():
 
     # Microphone array parameters
     d = 0.2
-    mic_locations = [[2.6-d/2, 3, 1.5], [2.6+d/2, 3, 1.5], [2.6, 3-d/2, 1.5], [2.6, 3+d/2, 1.5]]
-    num_mics = len(mic_locations)
-    mic_spacing = 0.05
+    mic_locations = [[2.6 - d / 2, 3, 1.5], [2.6 + d / 2, 3, 1.5], [2.6, 3 - d / 2, 1.5], [2.6, 3 + d / 2, 1.5]]
 
     # Target Source parameters
     source_location = np.array([np.random.uniform(1, 4), np.random.uniform(1, 5), 1.5])
@@ -93,112 +92,16 @@ def main_q1():
     T60_q1 = T60_values[1]
     snr_q1 = snr_values[1]
 
-    loc_map = apply_srp_phat(mic_sigs=target_mic_signals[T60_q1], fs=fs, room_dim=room_dim, mic_locations=mic_locations, resolution=[200, 200], true_source_pos=source_location)
+    clean_sig = target_mic_signals[T60_q1]
+    white_noise = generate_white_noise(clean_sig.shape)
+    noisy_signal, _ = mix_signals(clean_sig, white_noise, snr_q1)
 
-
-
-
-    # Section (c)
-    interferer_rirs = generate_room_impulse_responses(
-        fs=fs,
-        room_dim=room_dim,
-        mic_center=mic_center,
-        num_mics=num_mics,
-        mic_spacing=mic_spacing,
-        source_angle_deg=interferer_angle_deg,
-        source_distance=interferer_distance,
-        T60_values=T60_values
-    )
-
-    interferer_sound_obj = LibriSpeechSoundObject(
-        data_set_path=DATA_SET_PATH,
-        data_set_name=DATA_SET_NAME,
-        speaker_id='84',
-        chapter_number='121123',
-        utterance_number='0001',
-        file_ext='flac')
-    interferer_file_path = interferer_sound_obj.params2path()
-
-    interferer_mic_signals = generate_microphone_signals(
-        clean_speech_path=interferer_file_path,
-        fs=fs,
-        rirs=interferer_rirs)
-
-    original_target_sound, _ = target_sound_obj.read_file(fs=fs)
-
-    # Create output directory for wav files
-    output_dir = "output_folder_q1"
-    os.makedirs(output_dir, exist_ok=True)
-
-    # We focus on T60 = 300ms (0.3s) and SNR = 10dB for the specific plots requested in section (d)
-    plot_T60 = T60_values[1]
-    plot_SNR = snr_values[1]
-
-    for T60 in T60_values:
-        for snr in snr_values:
-
-            # Get Clean Target Signal (Multichannel)
-            clean_sig = target_mic_signals[T60]
-
-            # Type 1 - White Gaussian Noise
-            white_noise = generate_white_noise(clean_sig.shape)
-            noisy_white, _ = mix_signals(clean_sig, white_noise, snr)
-
-            # Type 2 - Interferer Noise
-            inter_sig = interferer_mic_signals[T60]
-
-            # Ensure lengths match (Interferer might be longer/shorter)
-            min_len = min(clean_sig.shape[1], inter_sig.shape[1])
-            clean_sig_trunc = clean_sig[:, :min_len]
-            inter_sig_trunc = inter_sig[:, :min_len]
-
-            noisy_interferer, _ = mix_signals(clean_sig_trunc, inter_sig_trunc, snr)
-
-            # Section (c) - plot
-            if T60 == plot_T60 and snr == plot_SNR:  # Only for T60=300ms and SNR=10dB
-                # 1 - White Noise (mic 1)
-                plot_time_freq_analysis(
-                    original_target_sound[:clean_sig.shape[1]]/ORIGINAL_SIGNAL_FACTOR,
-                    clean_sig[0, :],
-                    noisy_white[0, :],
-                    fs,
-                    title_suffix=f"(White Noise, SNR={snr}dB, T60={T60}s)"
-                )
-
-                # 2 - Interferer (mic 1)
-                plot_time_freq_analysis(
-                    original_target_sound[:min_len]/ORIGINAL_SIGNAL_FACTOR,
-                    clean_sig_trunc[0, :],
-                    noisy_interferer[0, :],
-                    fs,
-                    title_suffix=f"(Interferer, SNR={snr}dB, T60={T60}s)"
-                )
-
-            # Section (e) - Save WAV files (mic 1)
-            # - save clean reverberation version
-            clean_filename_suffix = f"T60_{int(T60 * 1000)}ms"
-            if snr == snr_values[0]:
-                wavfile.write(
-                    f"{output_dir}/clean_{clean_filename_suffix}.wav",
-                    fs,
-                    clean_sig[0, :].astype(np.float32)
-                )
-
-            filename_suffix = f"T60_{int(T60 * 1000)}ms_SNR_{snr}dB"
-
-            # - save White Noise version
-            wavfile.write(
-                f"{output_dir}/white_noise_{filename_suffix}.wav",
-                fs,
-                noisy_white[0, :].astype(np.float32)
-            )
-
-            # - save Interferer version
-            wavfile.write(
-                f"{output_dir}/interferer_{filename_suffix}.wav",
-                fs,
-                noisy_interferer[0, :].astype(np.float32)
-            )
+    srp_map, estimated_pos_srp_phat, (x_range_srp_phat, y_range_srp_phat) = apply_srp_phat(
+        mic_sigs=noisy_signal, fs=fs, room_dim=room_dim, mic_locations=mic_locations,
+        resolution=[20, 20], true_source_pos=source_location)
+    music_map, estimated_pos_music, (x_range_music, y_range_music) = apply_music(
+        mic_sigs=noisy_signal, fs=fs, room_dim=room_dim, mic_locations=mic_locations,
+        resolution=[20, 20], true_source_pos=source_location)
 
 
 if __name__ == "__main__":

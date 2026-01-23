@@ -8,33 +8,20 @@ from scipy.signal import fftconvolve
 # ---Room Simulation---
 def generate_room_impulse_responses(fs, room_dim, mic_locations, source_location, T60_values):
     c = 344.0  # speed of sound
-
-    # Handle source location: assign random Z (1.2m-2.0m) if only X,Y provided
-    if source_location.shape[0] == 2:
-        z_coord = np.random.uniform(1.2, 2.0)
-        source_pos = np.append(source_location, z_coord)
-    else:
-        source_pos = source_location
-
     all_rirs = {}
-
     for t60 in T60_values:
-        # Define RIR length based on T60 and sampling frequency
         nsample = int(t60 * fs)
 
-        # Generate RIRs using Image Source Method (ISM)
-        # Resulting 'h' matrix columns correspond to each microphone
+        # Generate RIRs
         h = rir.generate(
             c=c,
             fs=fs,
-            r=np.array(mic_locations),  # Mic array coordinates {r_m} [cite: 25]
-            s=source_pos,  # Source position 'p' [cite: 26]
-            L=np.array(room_dim),  # Dimensions of the acoustic environment
-            reverberation_time=t60,  # Target T60 for simulation
+            r=np.array(mic_locations),  # Mic array coordinates
+            s=source_location,  # Source position 'p'
+            L=np.array(room_dim),  # Dimensions of room
+            reverberation_time=t60,  # T60 for simulation
             nsample=nsample  # Total number of RIR samples
         )
-
-        # Store transposed matrix: each row represents a microphone channel [cite: 27]
         all_rirs[t60] = h.T
 
     return all_rirs
@@ -53,10 +40,36 @@ def generate_microphone_signals(
             # Convolve clean speech with the m RIR
             x_fft = fftconvolve(sound, rir_list[m])
             X[m, :] = x_fft[:signal_length]
-
         mic_signals[T60] = X
 
     return mic_signals
+
+
+def mix_signals(clean_signal, noise_signal, snr_db):
+    # Calculate power of clean signal and noise
+    p_signal = np.mean(clean_signal ** 2)
+    p_noise = np.mean(noise_signal ** 2)
+
+    # Avoid division by zero
+    if p_noise == 0:
+        return clean_signal
+
+    # Calculate required scaling factor for noise
+    # SNR_linear = P_signal / (scale^2 * P_noise)
+    # scale = sqrt(P_signal / (P_noise * 10^(SNR/10)))
+    scale_factor = np.sqrt(p_signal / (p_noise * (10 ** (snr_db / 10))))
+
+    # Create noisy signal
+    noise = scale_factor * noise_signal
+    noisy_signal = clean_signal + noise
+
+    return noisy_signal, noise
+
+
+def generate_white_noise(signal_shape):
+    # generate normal distribution samples (mean=0, std=1)
+    noise = np.random.randn(*signal_shape)
+    return noise
 
 
 # ---utils---
@@ -66,6 +79,35 @@ def apply_stft(signals, fs, nperseg=512, noverlap=256):
         f, t, Z = signal.stft(signals[i], fs=fs, window='hamming', nperseg=nperseg, noverlap=noverlap)
         stft_data.append(Z)
     return f, t, np.array(stft_data)
+    #     stft_data.append(Z[16:81,:])
+    # return f[16:81], t, np.array(stft_data)
+
+
+def plot_location_map(srp_map, x_range, y_range, true_source_pos, estimated_pos, mic_locations, method_name=""):
+    plt.figure(figsize=(10, 8))
+
+    extent = [x_range[0], x_range[-1], y_range[0], y_range[-1]]
+    im = plt.imshow(srp_map.T, extent=extent, origin='lower', cmap='inferno', aspect='auto')
+    plt.colorbar(im, label='Likelihood')
+
+    # Plot True Source Position (Red dot as seen in Fig 1 & 2 of the course)
+    plt.scatter(true_source_pos[0], true_source_pos[1], color='red', s=100,
+                label='True Source Location', edgecolors='white')
+
+    # Plot Estimated Position (Black dot/triangle)
+    plt.scatter(estimated_pos[0], estimated_pos[1], color='black', s=100, marker='x',
+                label='Estimated Location (Map Max)')
+
+    # Plot Microphone Locations (Blue dots)
+    plt.scatter(mic_locations[:, 0], mic_locations[:, 1], color='cyan', marker='o',
+                label='Microphones', edgecolors='black')
+
+    plt.title(f"{method_name} Power Map (Resolution: {srp_map.shape[0]}x{srp_map.shape[1]})")
+    plt.xlabel("X-axis [m]")
+    plt.ylabel("Y-axis [m]")
+    plt.legend(loc='upper right')
+    plt.grid(alpha=0.3)
+    plt.show()
 
 
 # ---SPR-PHAT---
@@ -88,38 +130,24 @@ def compute_gcc_phat(stft_data, n_fft=512):
     return gcc_channels
 
 
-def compute_srp_map(gcc_channels, fs, room_dim, mic_locations, num_px_x=64, num_px_y=64):
-    """
-    Builds the SRP-PHAT likelihood map using a fixed number of pixels per dimension.
-
-    Args:
-        gcc_channels (dict): GCC-PHAT functions for each pair.
-        fs (int): Sampling frequency.
-        room_dim (list): Room dimensions [L, W, H].
-        mic_locations (np.ndarray): Array of microphone positions.
-        num_px_x (int): Number of pixels along the X-axis (length).
-        num_px_y (int): Number of pixels along the Y-axis (width).
-    """
-    c = 344.0  # Speed of sound [cite: 38]
+def compute_srp_map(gcc_channels, fs, room_dim, mic_locations, num_px_x=20, num_px_y=20, z=1.5):
+    c = 344.0  # Speed of sound
     n_fft = len(next(iter(gcc_channels.values())))  # Get FFT length
 
-    # 1. Create a regular grid (p) using the specified number of pixels [cite: 107]
-    # np.linspace ensures we have exactly num_px across the room dimension
     x_range = np.linspace(0, room_dim[0], num_px_x)
     y_range = np.linspace(0, room_dim[1], num_px_y)
-    z_fixed = 1.5  # Target height for the 2D scan
+    z_fixed = z
 
     srp_map = np.zeros((num_px_x, num_px_y))
-
-    # 2. Iterate through each pixel coordinate (candidate position p)
+    # for loop on pixel coordinate
     for i, x in enumerate(x_range):
         for j, y in enumerate(y_range):
             p = np.array([x, y, z_fixed])
             total_power = 0
 
-            # 3. Sum the GCC-PHAT values for all microphone pairs [cite: 109]
+            # Sum the GCC-PHAT values for all microphone pairs
             for (m1, m2), r_12 in gcc_channels.items():
-                # Calculate theoretical TDOA for candidate point p
+                # Calculate TDOA
                 dist1 = np.linalg.norm(p - mic_locations[m1])
                 dist2 = np.linalg.norm(p - mic_locations[m2])
                 tau_p = (dist1 - dist2) / c
@@ -133,48 +161,99 @@ def compute_srp_map(gcc_channels, fs, room_dim, mic_locations, num_px_x=64, num_
 
             srp_map[i, j] = total_power
 
-    # 4. Find location maximizing the Steered Response Power [cite: 112]
+    # Find max value on map: the estimated-position
     max_idx = np.unravel_index(np.argmax(srp_map), srp_map.shape)
     estimated_pos = [x_range[max_idx[0]], y_range[max_idx[1]], z_fixed]
 
     return srp_map, estimated_pos, (x_range, y_range)
 
 
-def plot_srp_map(srp_map, x_range, y_range, true_source_pos, estimated_pos, mic_locations):
-    """
-    Visualizes the SRP-PHAT power map with true and estimated source positions.
-    """
-    plt.figure(figsize=(10, 8))
-
-    # Plot the likelihood map (transposed to match X/Y axes correctly)
-    # Using 'inferno' or 'viridis' colormaps which are common for likelihood maps
-    extent = [x_range[0], x_range[-1], y_range[0], y_range[-1]]
-    im = plt.imshow(srp_map.T, extent=extent, origin='lower', cmap='inferno', aspect='auto')
-    plt.colorbar(im, label='Likelihood (Normalized Power)')
-
-    # Plot True Source Position (Red dot as seen in Fig 1 & 2 of the course)
-    plt.scatter(true_source_pos[0], true_source_pos[1], color='red', s=100,
-                label='Actual DOA/Location', edgecolors='white')
-
-    # Plot Estimated Position (Black dot/triangle)
-    plt.scatter(estimated_pos[0], estimated_pos[1], color='black', s=100, marker='x',
-                label='Estimated Location (Map Max)')
-
-    # Plot Microphone Locations (Blue dots)
-    plt.scatter(mic_locations[:, 0], mic_locations[:, 1], color='cyan', marker='o',
-                label='Microphones', edgecolors='black')
-
-    plt.title(f"SRP-PHAT Power Map (Resolution: {srp_map.shape[0]}x{srp_map.shape[1]})")
-    plt.xlabel("X-axis [m]")
-    plt.ylabel("Y-axis [m]")
-    plt.legend(loc='upper right')
-    plt.grid(alpha=0.3)
-    plt.show()
-
-
 def apply_srp_phat(mic_sigs, fs, room_dim, mic_locations, resolution, true_source_pos):
     f, t, signals_stft = apply_stft(mic_sigs, fs)
     gcc_channels = compute_gcc_phat(signals_stft)
-    srp_map, estimated_pos, (x_range, y_range) = compute_srp_map(gcc_channels, fs, room_dim, mic_locations, resolution[0], resolution[1])
-    plot_srp_map(srp_map, x_range, y_range, true_source_pos, estimated_pos, np.array(mic_locations))
+    srp_map, estimated_pos, (x_range, y_range) = compute_srp_map(gcc_channels, fs, room_dim, mic_locations,
+                                                                 resolution[0], resolution[1])
+    plot_location_map(srp_map, x_range, y_range, true_source_pos, estimated_pos, np.array(mic_locations), "SRP-PHAT")
 
+    return srp_map, estimated_pos, (x_range, y_range)
+
+
+# ---MUSIC---
+def estimate_cov_matrix(signals_stft):
+    num_mics, num_freqs, num_frames = signals_stft.shape
+
+    cov_matrix = np.zeros((num_freqs, num_mics, num_mics), dtype=complex)
+    # calc estimated cov matrix for each f
+    for f in range(num_freqs):
+        x_f = signals_stft[:, f, :]
+        cov_matrix[f] = np.dot(x_f, x_f.conj().T) / num_frames
+
+    return cov_matrix
+
+
+def find_noise_subspace(cov_matrix, num_sources=1):
+    num_freqs, num_mics, _ = cov_matrix.shape
+    num_noise_vectors = num_mics - num_sources
+
+    U_N = np.zeros((num_freqs, num_mics, num_noise_vectors), dtype=complex)
+    for f in range(num_freqs):
+        eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix[f])
+
+        # sort eigenvalues
+        idx = np.argsort(eigenvalues)[::-1]
+        eigenvectors = eigenvectors[:, idx]
+
+        # The first 'num_sources' eigenvectors span the signal subspace (U_S) and
+        # the other M-P eigenvectors span the noise subspace (U_N)
+        U_N[f] = eigenvectors[:, num_sources:]
+
+    return U_N
+
+
+def compute_music_map(U_N, fs, room_dim, mic_locations, num_px_x=20, num_px_y=20, z=1.5):
+    c = 344.0  # Speed of sound
+    num_freqs, num_mics, num_noise_vectors = U_N.shape
+
+    x_range = np.linspace(0, room_dim[0], num_px_x)
+    y_range = np.linspace(0, room_dim[1], num_px_y)
+    z_fixed = z
+
+    music_map = np.zeros((num_px_x, num_px_y))
+    freq_bins = np.linspace(0, fs / 2, num_freqs)
+    for i, x in enumerate(x_range):
+        for j, y in enumerate(y_range):
+            p = np.array([x, y, z_fixed])
+
+            dists = np.linalg.norm(mic_locations - p, axis=1)
+            taus = dists / c
+
+            p_score = 0
+            for f_idx, f_hz in enumerate(freq_bins):
+                # find steering vector for location p
+                steering_vector = np.exp(-1j * 2 * np.pi * f_hz * taus)
+
+                # U_f is the matrix of eigenvectors spanning the noise subspace [cite: 262]
+                U_N_f = U_N[f_idx]
+
+                # degree of orthogonality: e^H * U_N * U_N^H * e
+                projection = np.matmul(steering_vector.conj().T, U_N_f)
+                orthogonality_degree = np.sum(np.abs(projection) ** 2)
+                p_score += 1.0 / (orthogonality_degree + 1e-10)  # pseudo-spectrum
+
+            music_map[i, j] = p_score
+
+    max_idx = np.unravel_index(np.argmax(music_map), music_map.shape)
+    estimated_pos = [x_range[max_idx[0]], y_range[max_idx[1]], z_fixed]
+
+    return music_map, estimated_pos, (x_range, y_range)
+
+
+def apply_music(mic_sigs, fs, room_dim, mic_locations, resolution, true_source_pos):
+    f, t, signals_stft = apply_stft(mic_sigs, fs)
+    cov_matrix = estimate_cov_matrix(signals_stft)
+    U_N = find_noise_subspace(cov_matrix, 1)
+    music_map, estimated_pos, (x_range, y_range) = compute_music_map(U_N, fs, room_dim, mic_locations,
+                                                                     resolution[0], resolution[1])
+    plot_location_map(music_map, x_range, y_range, true_source_pos, estimated_pos, np.array(mic_locations), "MUSIC")
+
+    return music_map, estimated_pos, (x_range, y_range)
