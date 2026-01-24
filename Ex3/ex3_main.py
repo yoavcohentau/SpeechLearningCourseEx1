@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.io import wavfile
 
-from Ex3.Q1_func import generate_room_impulse_responses, generate_microphone_signals, apply_srp_phat, \
+from Ex3.ex3_func import generate_room_impulse_responses, generate_microphone_signals, apply_srp_phat, \
     generate_white_noise, mix_signals, apply_music, plot_location_maps
 from Ex3.librispeech_data_set_utils import LibriSpeechSoundObject
 
@@ -16,6 +16,7 @@ DATA_SET_PATH = fr"J:\My Drive\Courses\2026A\Signal Processing and Machine Learn
 
 
 def main_q1():
+def main_ex3():
     # General parameters
     fs = 16000
     room_dim = [5.2, 6.2, 3.5]
@@ -98,10 +99,10 @@ def main_q1():
 
     srp_map, estimated_pos_srp_phat, (x_range_srp_phat, y_range_srp_phat) = apply_srp_phat(
         mic_sigs=noisy_signal, fs=fs, room_dim=room_dim, mic_locations=mic_locations,
-        resolution=[20, 20], true_source_pos=source_location)
+        resolution=[20, 20], true_source_pos=source_location, plot_map=False)
     music_map, estimated_pos_music, (x_range_music, y_range_music) = apply_music(
         mic_sigs=noisy_signal, fs=fs, room_dim=room_dim, mic_locations=mic_locations,
-        resolution=[20, 20], true_source_pos=source_location)
+        resolution=[20, 20], true_source_pos=source_location, plot_map=False)
 
     # Plot maps
     plot_location_maps(
@@ -114,9 +115,9 @@ def main_q1():
         mic_locations=mic_locations
     )
 
-    # For a single map:
-    plot_location_maps(srp_map, "SRP-PHAT", x_range_srp_phat, y_range_srp_phat, source_location, estimated_pos_srp_phat, mic_locations)
+    # ---Q2---
+
 
 
 if __name__ == "__main__":
-    main_q1()
+    main_ex3()
