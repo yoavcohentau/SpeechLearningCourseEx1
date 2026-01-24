@@ -101,6 +101,9 @@ def plot_location_maps(maps, method_names, x_range, y_range, true_source_pos, es
         curr_map = maps[i]
         curr_method = method_names[i]
         curr_est = estimated_positions[i]
+        true_pos = np.array(true_source_pos)
+
+        error_m = np.linalg.norm(true_pos[:2] - curr_est[:2])
 
         # Plot the likelihood map (Pseudo-spectrum for MUSIC or Power Map for SRP)
         im = ax.imshow(curr_map.T, extent=extent, origin='lower', cmap='inferno', aspect='auto')
@@ -118,11 +121,74 @@ def plot_location_maps(maps, method_names, x_range, y_range, true_source_pos, es
         ax.scatter(mic_locations[:, 0], mic_locations[:, 1], color='cyan', marker='o',
                    label='Microphones', edgecolors='black', zorder=4)
 
-        ax.set_title(f"{curr_method} Map ({curr_map.shape[0]}x{curr_map.shape[1]})")
+        ax.set_title(f"{curr_method} Map ({curr_map.shape[0]}x{curr_map.shape[1]})\nError: {error_m:.3f} meters")
         ax.set_xlabel("X-axis [m]")
         ax.set_ylabel("Y-axis [m]")
         ax.legend(loc='upper right')
         ax.grid(alpha=0.3)
+
+    plt.tight_layout()
+    plt.show()
+
+
+def calculate_rmse(true_positions, estimated_positions):
+    true_pos = np.array(true_positions)
+    est_pos = np.array(estimated_positions)
+
+    squared_distances = np.sum((true_pos - est_pos) ** 2, axis=1)
+    mse = np.mean(squared_distances)
+    rmse = np.sqrt(mse)
+
+    return rmse
+
+
+def plot_rmse_performance(experiment_results, x_axis_type="SNR"):
+    """
+    Plots RMSE performance for SRP-PHAT and MUSIC side-by-side.
+
+    Args:
+        experiment_results (list): List containing dictionaries from q2_func runs.
+        x_axis_type (list): List of strings ['SNR', 'T60'] defining the X-axis for each plot.
+    """
+    num_exps = len(experiment_results)
+    # Create subplots based on number of experiments
+    fig, axes = plt.subplots(1, num_exps, figsize=(6 * num_exps, 5), squeeze=False)
+
+    for i, res in enumerate(experiment_results):
+        ax = axes[0, i]
+        current_type = x_axis_type[i]
+
+        x_vals = []
+        rmse_srp = []
+        rmse_music = []
+
+        # Parse the keys (e.g., "300ms-15db") based on requested plot type
+        for key, vals in res.items():
+            if current_type == "SNR":
+                # Extract SNR value from string "XXXms-YYdb"
+                val = int(key.split("-")[1].replace("db", ""))
+                title_info = "RT = 0.3s"  # Fixed RT for SNR experiment
+            else:
+                # Extract T60 value from string "XXXms-YYdb"
+                val = float(key.split("-")[0].replace("ms", ""))
+                title_info = "SNR = 15dB"  # Fixed SNR for T60 experiment
+
+            x_vals.append(val)
+            rmse_srp.append(vals["rmse_srp_phat"])
+            rmse_music.append(vals["rmse_music"])
+
+        # Sort data points to ensure lines are plotted correctly
+        x_vals, rmse_srp, rmse_music = zip(*sorted(zip(x_vals, rmse_srp, rmse_music)))
+
+        # Plot SRP-PHAT (usually markers 'o') vs MUSIC (usually markers 's') [cite: 668]
+        ax.plot(x_vals, rmse_srp, marker='o', linestyle='--', label="SRP-PHAT")
+        ax.plot(x_vals, rmse_music, marker='s', linestyle='-', label="MUSIC")
+
+        ax.set_xlabel(f"{current_type} [{'dB' if current_type == 'SNR' else 'ms'}]")
+        ax.set_ylabel("RMSE [m]")
+        ax.set_title(f"RMSE vs {current_type}\n({title_info})")
+        ax.legend()
+        ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
     plt.show()
