@@ -83,7 +83,7 @@ def apply_stft(signals, fs, nperseg=512, noverlap=256):
     # return f[16:81], t, np.array(stft_data)
 
 
-def plot_location_map(srp_map, x_range, y_range, true_source_pos, estimated_pos, mic_locations, method_name=""):
+def plot_location_map(srp_map, method_name, x_range, y_range, true_source_pos, estimated_pos, mic_locations):
     plt.figure(figsize=(10, 8))
 
     extent = [x_range[0], x_range[-1], y_range[0], y_range[-1]]
@@ -107,6 +107,54 @@ def plot_location_map(srp_map, x_range, y_range, true_source_pos, estimated_pos,
     plt.ylabel("Y-axis [m]")
     plt.legend(loc='upper right')
     plt.grid(alpha=0.3)
+    plt.show()
+
+
+def plot_location_maps(maps, method_names, x_range, y_range, true_source_pos, estimated_positions, mic_locations):
+    """
+    Plots one or two localization power maps (e.g., SRP-PHAT and MUSIC).
+    """
+    # Ensure inputs are lists even if a single map is provided
+    if not isinstance(maps, list):
+        maps = [maps]
+        method_names = [method_names]
+        estimated_positions = [estimated_positions]
+
+    num_maps = len(maps)
+    fig, axes = plt.subplots(1, num_maps, figsize=(5 * num_maps, 4), squeeze=False)
+
+    extent = [x_range[0], x_range[-1], y_range[0], y_range[-1]]
+    mic_locations = np.array(mic_locations)
+
+    for i in range(num_maps):
+        ax = axes[0, i]
+        curr_map = maps[i]
+        curr_method = method_names[i]
+        curr_est = estimated_positions[i]
+
+        # Plot the likelihood map (Pseudo-spectrum for MUSIC or Power Map for SRP) [cite: 137, 266]
+        im = ax.imshow(curr_map.T, extent=extent, origin='lower', cmap='inferno', aspect='auto')
+        fig.colorbar(im, ax=ax, label='Likelihood / Power')
+
+        # Plot True Source Position (Red dot) [cite: 138, 243]
+        ax.scatter(true_source_pos[0], true_source_pos[1], color='red', s=100,
+                   label='True Source', edgecolors='white', zorder=5)
+
+        # Plot Estimated Position (Black X) [cite: 243]
+        ax.scatter(curr_est[0], curr_est[1], color='black', s=150, marker='x',
+                   label=f'Est. {curr_method}', zorder=6)
+
+        # Plot Microphone Locations (Cyan dots) [cite: 137]
+        ax.scatter(mic_locations[:, 0], mic_locations[:, 1], color='cyan', marker='o',
+                   label='Microphones', edgecolors='black', zorder=4)
+
+        ax.set_title(f"{curr_method} Map ({curr_map.shape[0]}x{curr_map.shape[1]})")
+        ax.set_xlabel("X-axis [m]")
+        ax.set_ylabel("Y-axis [m]")
+        ax.legend(loc='upper right')
+        ax.grid(alpha=0.3)
+
+    plt.tight_layout()
     plt.show()
 
 
@@ -173,7 +221,7 @@ def apply_srp_phat(mic_sigs, fs, room_dim, mic_locations, resolution, true_sourc
     gcc_channels = compute_gcc_phat(signals_stft)
     srp_map, estimated_pos, (x_range, y_range) = compute_srp_map(gcc_channels, fs, room_dim, mic_locations,
                                                                  resolution[0], resolution[1])
-    plot_location_map(srp_map, x_range, y_range, true_source_pos, estimated_pos, np.array(mic_locations), "SRP-PHAT")
+    plot_location_map(srp_map, "SRP-PHAT", x_range, y_range, true_source_pos, estimated_pos, np.array(mic_locations))
 
     return srp_map, estimated_pos, (x_range, y_range)
 
@@ -254,6 +302,6 @@ def apply_music(mic_sigs, fs, room_dim, mic_locations, resolution, true_source_p
     U_N = find_noise_subspace(cov_matrix, 1)
     music_map, estimated_pos, (x_range, y_range) = compute_music_map(U_N, fs, room_dim, mic_locations,
                                                                      resolution[0], resolution[1])
-    plot_location_map(music_map, x_range, y_range, true_source_pos, estimated_pos, np.array(mic_locations), "MUSIC")
+    plot_location_map(music_map, "MUSIC", x_range, y_range, true_source_pos, estimated_pos, np.array(mic_locations))
 
     return music_map, estimated_pos, (x_range, y_range)

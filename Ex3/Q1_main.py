@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from scipy.io import wavfile
 
 from Ex3.Q1_func import generate_room_impulse_responses, generate_microphone_signals, apply_srp_phat, \
-    generate_white_noise, mix_signals, apply_music
+    generate_white_noise, mix_signals, apply_music, plot_location_maps
 from Ex3.librispeech_data_set_utils import LibriSpeechSoundObject
 
 PLOT_FLAG = False
@@ -102,6 +102,20 @@ def main_q1():
     music_map, estimated_pos_music, (x_range_music, y_range_music) = apply_music(
         mic_sigs=noisy_signal, fs=fs, room_dim=room_dim, mic_locations=mic_locations,
         resolution=[20, 20], true_source_pos=source_location)
+
+    # Plot maps
+    plot_location_maps(
+        maps=[srp_map, music_map],
+        method_names=["SRP-PHAT", "MUSIC"],
+        x_range=x_range_srp_phat,
+        y_range=y_range_srp_phat,
+        true_source_pos=source_location,
+        estimated_positions=[estimated_pos_srp_phat, estimated_pos_music],
+        mic_locations=mic_locations
+    )
+
+    # For a single map:
+    plot_location_maps(srp_map, "SRP-PHAT", x_range_srp_phat, y_range_srp_phat, source_location, estimated_pos_srp_phat, mic_locations)
 
 
 if __name__ == "__main__":
