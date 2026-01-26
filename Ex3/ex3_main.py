@@ -1,9 +1,8 @@
-import os
-
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.io import wavfile
 from collections import defaultdict
+
+import matplotlib.pyplot as plt
+import numpy as np
+from tqdm import tqdm
 
 from Ex3.ex3_func import generate_room_impulse_responses, generate_microphone_signals, apply_srp_phat, \
     generate_white_noise, mix_signals, apply_music, plot_location_maps, calculate_rmse, plot_rmse_performance
@@ -110,7 +109,7 @@ def q1_func(source_location, target_sound, fs, T60_values, snr_values, plot_flag
 def q2_func(num_of_tries_per_experiment, target_sound, fs, T60_values, snr_values, plot_flag):
     estim_pos_list = []
     source_location_list = []
-    for idx_try in range(num_of_tries_per_experiment):
+    for idx_try in tqdm(range(num_of_tries_per_experiment)):
         source_location_list.append(np.array([np.random.uniform(1, 4), np.random.uniform(1, 5), 1.5]))
         estim_pos_list.append(q1_func(source_location=source_location_list[-1],
                                       target_sound=target_sound,
@@ -155,11 +154,15 @@ def main_ex3():
     target_sound, target_sound_fs = target_sound_obj.read_file(fs)
 
     # ---Q1---
+    print('---Q1---')
+
     T60_q1 = T60_values[1]  # 300ms
     snr_q1 = snr_values[1]  # 15dB
+
     q1_func(source_location, target_sound, fs, [T60_q1], [snr_q1], True)
 
     # ---Q2---
+    print('---Q2---')
     num_of_tries_per_experiment = 30
 
     T60_q2_a = [T60_values[1]]  # 300ms
@@ -169,52 +172,7 @@ def main_ex3():
     snr_q2_b = [snr_values[1]]  # 15dB
 
     rmse_res_q2_a = q2_func(num_of_tries_per_experiment, target_sound, fs, T60_q2_a, snr_q2_a, False)
-
-    # snr = []
-    # rmse_1 = []
-    # rmse_2 = []
-    #
-    # for key, vals in rmse_res_q2_a.items():
-    #     snr_db = int(key.split("-")[1].replace("db", ""))
-    #     snr.append(snr_db)
-    #     rmse_1.append(vals["rmse_srp_phat"])
-    #     rmse_2.append(vals["rmse_music"])
-    #
-    # snr, rmse_1, rmse_2 = zip(*sorted(zip(snr, rmse_1, rmse_2)))
-    #
-    # plt.figure()
-    # plt.plot(snr, rmse_1, marker='o', label="srp-phat")
-    # plt.plot(snr, rmse_2, marker='s', label="music")
-    # plt.xlabel("SNR [dB]")
-    # plt.ylabel("RMSE")
-    # plt.title("RMSE vs SNR (RT = 0.3 ms)")
-    # plt.legend()
-    # plt.grid(True)
-    # # plt.show()
-
     rmse_res_q2_b = q2_func(num_of_tries_per_experiment, target_sound, fs, T60_q2_b, snr_q2_b, False)
-
-    # t60 = []
-    # rmse_1 = []
-    # rmse_2 = []
-    #
-    # for key, vals in rmse_res_q2_b.items():
-    #     t60_ms = float(key.split("-")[0].replace("ms", ""))
-    #     t60.append(t60_ms)
-    #     rmse_1.append(vals["rmse_srp_phat"])
-    #     rmse_2.append(vals["rmse_music"])
-    #
-    # t60, rmse_1, rmse_2 = zip(*sorted(zip(t60, rmse_1, rmse_2)))
-    #
-    # plt.figure()
-    # plt.plot(t60, rmse_1, marker='o', label="srp-phat")
-    # plt.plot(t60, rmse_2, marker='s', label="music")
-    # plt.xlabel("T60 [ms]")
-    # plt.ylabel("RMSE")
-    # plt.title("RMSE vs T60 (SNR = 15 dB)")
-    # plt.legend()
-    # plt.grid(True)
-    # plt.show()
 
     plot_rmse_performance([rmse_res_q2_a, rmse_res_q2_b], x_axis_type=["SNR", "T60"])
     pass

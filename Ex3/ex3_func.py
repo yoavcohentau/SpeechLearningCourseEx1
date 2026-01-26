@@ -3,6 +3,7 @@ import numpy as np
 import rir_generator as rir
 from scipy import signal
 from scipy.signal import fftconvolve
+from sklearn.metrics import root_mean_squared_error
 
 
 # ---Room Simulation---
@@ -73,14 +74,14 @@ def generate_white_noise(signal_shape):
 
 
 # ---utils---
-def apply_stft(signals, fs, nperseg=512, noverlap=256):
+def apply_stft(signals, fs, nperseg=512, noverlap=128):
     stft_data = []
     for i in range(signals.shape[0]):
         f, t, Z = signal.stft(signals[i], fs=fs, window='hamming', nperseg=nperseg, noverlap=noverlap)
         stft_data.append(Z)
     return f, t, np.array(stft_data)
-    #     stft_data.append(Z[16:81,:])
-    # return f[16:81], t, np.array(stft_data)
+        # stft_data.append(Z[10:113, :])
+    # return f[10:113], t, np.array(stft_data)
 
 
 def plot_location_maps(maps, method_names, x_range, y_range, true_source_pos, estimated_positions, mic_locations):
@@ -139,7 +140,9 @@ def calculate_rmse(true_positions, estimated_positions):
     mse = np.mean(squared_distances)
     rmse = np.sqrt(mse)
 
-    return rmse
+    rmse2 = root_mean_squared_error(true_pos, est_pos)
+
+    return rmse2
 
 
 def plot_rmse_performance(experiment_results, x_axis_type="SNR"):
@@ -237,7 +240,7 @@ def compute_srp_map(gcc_channels, fs, room_dim, mic_locations, num_px_x=20, num_
                 tau_p = (dist1 - dist2) / c
 
                 # Map delay to sample index (n_fft/2 is zero-delay center)
-                sample_idx = int(tau_p * fs) + (n_fft // 2)
+                sample_idx = int(np.round(tau_p * fs)) + (n_fft // 2)
 
                 # Accumulate correlation power if index is valid
                 if 0 <= sample_idx < n_fft:
