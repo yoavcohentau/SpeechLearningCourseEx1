@@ -138,7 +138,7 @@ def calculate_rmse(true_positions, estimated_positions):
 
     squared_distances = np.sum((true_pos - est_pos) ** 2, axis=1)
     mse = np.mean(squared_distances)
-    rmse = np.sqrt(mse)
+    rmse1 = np.sqrt(mse)
 
     rmse2 = root_mean_squared_error(true_pos, est_pos)
 
@@ -146,15 +146,8 @@ def calculate_rmse(true_positions, estimated_positions):
 
 
 def plot_rmse_performance(experiment_results, x_axis_type="SNR"):
-    """
-    Plots RMSE performance for SRP-PHAT and MUSIC side-by-side.
-
-    Args:
-        experiment_results (list): List containing dictionaries from q2_func runs.
-        x_axis_type (list): List of strings ['SNR', 'T60'] defining the X-axis for each plot.
-    """
     num_exps = len(experiment_results)
-    # Create subplots based on number of experiments
+    # Create subplots - number of experiments
     fig, axes = plt.subplots(1, num_exps, figsize=(6 * num_exps, 5), squeeze=False)
 
     for i, res in enumerate(experiment_results):
@@ -170,7 +163,7 @@ def plot_rmse_performance(experiment_results, x_axis_type="SNR"):
             if current_type == "SNR":
                 # Extract SNR value from string "XXXms-YYdb"
                 val = int(key.split("-")[1].replace("db", ""))
-                title_info = "RT = 0.3s"  # Fixed RT for SNR experiment
+                title_info = "RT = 0.3s"  # Fixed T60 for SNR experiment
             else:
                 # Extract T60 value from string "XXXms-YYdb"
                 val = float(key.split("-")[0].replace("ms", ""))
@@ -183,7 +176,7 @@ def plot_rmse_performance(experiment_results, x_axis_type="SNR"):
         # Sort data points to ensure lines are plotted correctly
         x_vals, rmse_srp, rmse_music = zip(*sorted(zip(x_vals, rmse_srp, rmse_music)))
 
-        # Plot SRP-PHAT (usually markers 'o') vs MUSIC (usually markers 's') [cite: 668]
+        # Plot SRP-PHAT vs MUSIC
         ax.plot(x_vals, rmse_srp, marker='o', linestyle='--', label="SRP-PHAT")
         ax.plot(x_vals, rmse_music, marker='s', linestyle='-', label="MUSIC")
 
@@ -205,11 +198,11 @@ def compute_gcc_phat(stft_data, n_fft=512):
     for m1 in range(num_mics):
         for m2 in range(m1 + 1, num_mics):
             cps = stft_data[m1] * np.conj(stft_data[m2])
-            phi_phat = cps / (np.abs(cps) + 1e-10)
+            phase_phat = cps / (np.abs(cps) + 1e-10)
 
-            avg_phi = np.mean(phi_phat, axis=1)
+            avg_phase = np.mean(phase_phat, axis=1)
 
-            r_12 = np.fft.irfft(avg_phi, n=n_fft)
+            r_12 = np.fft.irfft(avg_phase, n=n_fft)
             r_12 = np.fft.fftshift(r_12)
 
             gcc_channels[(m1, m2)] = r_12
@@ -234,7 +227,7 @@ def compute_srp_map(gcc_channels, fs, room_dim, mic_locations, num_px_x=20, num_
 
             # Sum the GCC-PHAT values for all microphone pairs
             for (m1, m2), r_12 in gcc_channels.items():
-                # Calculate TDOA
+                # Calculate TDOA for point p
                 dist1 = np.linalg.norm(p - mic_locations[m1])
                 dist2 = np.linalg.norm(p - mic_locations[m2])
                 tau_p = (dist1 - dist2) / c
