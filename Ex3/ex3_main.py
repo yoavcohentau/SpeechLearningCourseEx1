@@ -8,14 +8,12 @@ from Ex3.ex3_func import generate_room_impulse_responses, generate_microphone_si
     generate_white_noise, mix_signals, apply_music, plot_location_maps, calculate_rmse, plot_rmse_performance
 from Ex3.librispeech_data_set_utils import LibriSpeechSoundObject
 
-PLOT_FLAG = False
-ORIGINAL_SIGNAL_FACTOR = 5
 
 DATA_SET_NAME = "dev-clean"  # "dev-clean" or "test-clean"
 DATA_SET_PATH = fr"J:\My Drive\Courses\2026A\Signal Processing and Machine Learning for Speech\HW\HW1\SpeechLearningCourseEx1\data\{DATA_SET_NAME}\LibriSpeech"
 
 
-def q1_func(source_location, target_sound, fs, T60_values, snr_values, plot_flag=True):
+def q1_func(source_location, sound, fs, T60_values, snr_values, plot_flag=True):
     # General parameters
     room_dim = [5.2, 6.2, 3.5]
 
@@ -33,7 +31,7 @@ def q1_func(source_location, target_sound, fs, T60_values, snr_values, plot_flag
         T60_values=T60_values
     )
 
-    # Plot time-domain RIR for the first microphone
+    # Plot RIR for the first microphone
     if plot_flag:
         colors = ['b', 'r', 'g']
         for i, T60_val in enumerate(T60_values):
@@ -54,7 +52,7 @@ def q1_func(source_location, target_sound, fs, T60_values, snr_values, plot_flag
         plt.show()
 
     target_mic_signals = generate_microphone_signals(
-        sound=target_sound,
+        sound=sound,
         rirs=target_rirs
     )
 
@@ -112,7 +110,7 @@ def q2_func(num_of_tries_per_experiment, target_sound, fs, T60_values, snr_value
     for idx_try in tqdm(range(num_of_tries_per_experiment)):
         source_location_list.append(np.array([np.random.uniform(1, 4), np.random.uniform(1, 5), 1.5]))
         estim_pos_list.append(q1_func(source_location=source_location_list[-1],
-                                      target_sound=target_sound,
+                                      sound=target_sound,
                                       fs=fs,
                                       T60_values=T60_values,
                                       snr_values=snr_values,
@@ -140,18 +138,18 @@ def main_ex3():
     T60_values = [0.15, 0.30, 0.55]
     snr_values = [5, 15, 30]  # dB
 
-    # Target Source parameters
+    # random source locatiom
     source_location = np.array([np.random.uniform(1, 4), np.random.uniform(1, 5), 1.5])
 
-    # load sample path
-    target_sound_obj = LibriSpeechSoundObject(
+    # load sample
+    sound_obj = LibriSpeechSoundObject(
         data_set_path=DATA_SET_PATH,
         data_set_name=DATA_SET_NAME,
         speaker_id='84',
         chapter_number='121123',
         utterance_number='0001',
         file_ext='flac')
-    target_sound, target_sound_fs = target_sound_obj.read_file(fs)
+    sound, sound_fs = sound_obj.read_file(fs)
 
     # ---Q1---
     print('---Q1---')
@@ -159,7 +157,7 @@ def main_ex3():
     T60_q1 = T60_values[1]  # 300ms
     snr_q1 = snr_values[1]  # 15dB
 
-    q1_func(source_location, target_sound, fs, [T60_q1], [snr_q1], True)
+    q1_func(source_location, sound, fs, [T60_q1], [snr_q1], True)
 
     # ---Q2---
     print('---Q2---')
@@ -171,8 +169,8 @@ def main_ex3():
     T60_q2_b = T60_values
     snr_q2_b = [snr_values[1]]  # 15dB
 
-    rmse_res_q2_a = q2_func(num_of_tries_per_experiment, target_sound, fs, T60_q2_a, snr_q2_a, False)
-    rmse_res_q2_b = q2_func(num_of_tries_per_experiment, target_sound, fs, T60_q2_b, snr_q2_b, False)
+    rmse_res_q2_a = q2_func(num_of_tries_per_experiment, sound, fs, T60_q2_a, snr_q2_a, False)
+    rmse_res_q2_b = q2_func(num_of_tries_per_experiment, sound, fs, T60_q2_b, snr_q2_b, False)
 
     plot_rmse_performance([rmse_res_q2_a, rmse_res_q2_b], x_axis_type=["SNR", "T60"])
     pass
