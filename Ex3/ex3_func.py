@@ -215,13 +215,13 @@ def compute_srp_map(gcc_channels, fs, room_dim, mic_locations, num_px_x=20, num_
     z_fixed = z
 
     srp_map = np.zeros((num_px_x, num_px_y))
-    # for loop on pixel coordinate
+    # for loop on pixels
     for i, x in enumerate(x_range):
         for j, y in enumerate(y_range):
             p = np.array([x, y, z_fixed])
             total_power = 0
 
-            # Sum the GCC-PHAT values for all microphone pairs
+            # Sum the gcc values for all microphone pairs
             for (m1, m2), r_12 in gcc_channels.items():
                 # Calculate tau for point p
                 dist1 = np.linalg.norm(p - mic_locations[m1])
