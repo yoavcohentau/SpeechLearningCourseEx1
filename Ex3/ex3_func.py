@@ -17,11 +17,11 @@ def generate_room_impulse_responses(fs, room_dim, mic_locations, source_location
         h = rir.generate(
             c=c,
             fs=fs,
-            r=np.array(mic_locations),  # Mic array coordinates
-            s=source_location,  # Source position 'p'
-            L=np.array(room_dim),  # Dimensions of room
-            reverberation_time=t60,  # T60 for simulation
-            nsample=nsample  # Total number of RIR samples
+            r=np.array(mic_locations),
+            s=source_location,
+            L=np.array(room_dim),
+            reverberation_time=t60,
+            nsample=nsample
         )
         all_rirs[t60] = h.T
 
@@ -38,7 +38,6 @@ def generate_microphone_signals(
         signal_length = len(sound)
         X = np.zeros((num_mics, signal_length), dtype=np.float32)
         for m in range(num_mics):
-            # Convolve clean speech with the m RIR
             x_fft = fftconvolve(sound, rir_list[m])
             X[m, :] = x_fft[:signal_length]
         mic_signals[T60] = X
@@ -47,7 +46,7 @@ def generate_microphone_signals(
 
 
 def mix_signals(clean_signal, noise_signal, snr_db):
-    # Calculate power of clean signal and noise
+    # calc power
     p_signal = np.mean(clean_signal ** 2)
     p_noise = np.mean(noise_signal ** 2)
 
@@ -55,12 +54,10 @@ def mix_signals(clean_signal, noise_signal, snr_db):
     if p_noise == 0:
         return clean_signal
 
-    # Calculate required scaling factor for noise
-    # SNR_linear = P_signal / (scale^2 * P_noise)
-    # scale = sqrt(P_signal / (P_noise * 10^(SNR/10)))
+    # calc scale_factor to get the snr
     scale_factor = np.sqrt(p_signal / (p_noise * (10 ** (snr_db / 10))))
 
-    # Create noisy signal
+    # noisy signal
     noise = scale_factor * noise_signal
     noisy_signal = clean_signal + noise
 
@@ -147,9 +144,8 @@ def calculate_rmse(true_positions, estimated_positions):
 
 def plot_rmse_performance(experiment_results, x_axis_type="SNR"):
     num_exps = len(experiment_results)
-    # Create subplots - number of experiments
-    fig, axes = plt.subplots(1, num_exps, figsize=(6 * num_exps, 5), squeeze=False)
 
+    fig, axes = plt.subplots(1, num_exps, figsize=(6 * num_exps, 5), squeeze=False)
     for i, res in enumerate(experiment_results):
         ax = axes[0, i]
         current_type = x_axis_type[i]
@@ -158,14 +154,14 @@ def plot_rmse_performance(experiment_results, x_axis_type="SNR"):
         rmse_srp = []
         rmse_music = []
 
-        # Parse the keys (e.g., "300ms-15db") based on requested plot type
+        # get the keys
         for key, vals in res.items():
             if current_type == "SNR":
-                # Extract SNR value from string "XXXms-YYdb"
+                # snr value
                 val = int(key.split("-")[1].replace("db", ""))
                 title_info = "RT = 0.3s"  # Fixed T60 for SNR experiment
             else:
-                # Extract T60 value from string "XXXms-YYdb"
+                # T60 value
                 val = float(key.split("-")[0].replace("ms", ""))
                 title_info = "SNR = 15dB"  # Fixed SNR for T60 experiment
 
@@ -173,10 +169,10 @@ def plot_rmse_performance(experiment_results, x_axis_type="SNR"):
             rmse_srp.append(vals["rmse_srp_phat"])
             rmse_music.append(vals["rmse_music"])
 
-        # Sort data points to ensure lines are plotted correctly
+        # sort
         x_vals, rmse_srp, rmse_music = zip(*sorted(zip(x_vals, rmse_srp, rmse_music)))
 
-        # Plot SRP-PHAT vs MUSIC
+        # plot
         ax.plot(x_vals, rmse_srp, marker='o', linestyle='--', label="SRP-PHAT")
         ax.plot(x_vals, rmse_music, marker='s', linestyle='-', label="MUSIC")
 
@@ -227,15 +223,15 @@ def compute_srp_map(gcc_channels, fs, room_dim, mic_locations, num_px_x=20, num_
 
             # Sum the GCC-PHAT values for all microphone pairs
             for (m1, m2), r_12 in gcc_channels.items():
-                # Calculate TDOA for point p
+                # Calculate tau for point p
                 dist1 = np.linalg.norm(p - mic_locations[m1])
                 dist2 = np.linalg.norm(p - mic_locations[m2])
                 tau_p = (dist1 - dist2) / c
 
-                # Map delay to sample index (n_fft/2 is zero-delay center)
+                # delay to sample index
                 sample_idx = int(np.round(tau_p * fs)) + (n_fft // 2)
 
-                # Accumulate correlation power if index is valid
+                # Accumulate correlation power
                 if 0 <= sample_idx < n_fft:
                     total_power += r_12[sample_idx]
 
@@ -313,10 +309,10 @@ def compute_music_map(U_N, fs, room_dim, mic_locations, num_px_x=20, num_px_y=20
                 # find steering vector for location p
                 steering_vector = np.exp(-1j * 2 * np.pi * f_hz * taus)
 
-                # U_N_f is the matrix of eigenvectors spanning the noise subspace
+                # U_N_f is the matrix of eigenvectors span the noise subspace
                 U_N_f = U_N[f_idx]
 
-                # degree of orthogonality: e^H * U_N * U_N^H * e
+                # degree of orthogonality
                 projection = np.matmul(steering_vector.conj().T, U_N_f)
                 orthogonality_degree = np.sum(np.abs(projection) ** 2)
                 p_score += 1.0 / (orthogonality_degree + 1e-10)  # pseudo-spectrum
