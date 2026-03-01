@@ -1,3 +1,5 @@
+import math
+
 import librosa
 import matplotlib.pyplot as plt
 import numpy as np
@@ -81,6 +83,7 @@ def estimate_rtf_using_gevd(noisy_stft, noise_cov, ref_mic=2):
         v = vecs[:, -1]
         h = R_n @ v  # calc RTF
         rtf[:, f] = h / (h[ref_mic] + 1e-12)  # normalize by ref mic
+    # rtf = rtf + 0.3*np.random.randn(*rtf.shape)
 
     return rtf
 
@@ -104,14 +107,59 @@ def _compute_mvdr_weights(noise_cov, rtf):
     return weights
 
 
-def apply_mvdr(mic_signals, noise, win_length=800, hop_length=48):
+def compute_taylor_beamformer(Rn, d, order=1):
+    """
+    Analytic Taylor beamformer
+
+    Rn: [F, M, M]
+    d : [M, F]
+    """
+
+    F, M, _ = Rn.shape
+    w_mvdr = _compute_mvdr_weights(Rn, d).T
+
+    w_taylor = np.zeros_like(w_mvdr)
+
+    for f in range(F):
+
+        Rn_inv = np.linalg.pinv(Rn[f])
+        d_f = d[:, f]
+        w0 = w_mvdr[f]
+
+        denom = d_f.conj().T @ Rn_inv @ d_f
+
+        correction = np.zeros(M, dtype=np.complex128)
+
+        for k in range(1, order+1):
+            coeff = ((-1)**k) / math.factorial(k)
+            term = (Rn_inv @ d_f) / (denom ** (k+1))
+            correction += coeff * term
+
+        w_taylor[f] = w0 + correction
+
+    return w_taylor
+
+
+def apply_mvdr(mic_signals, noise, win_length=800, hop_length=48,
+               is_return_stft=False, use_taylor=False, use_known_noise=True):
     mic_signals_stft = librosa.stft(mic_signals, n_fft=win_length, hop_length=hop_length, win_length=win_length)
-    noise_stft = librosa.stft(noise, n_fft=win_length, hop_length=hop_length, win_length=win_length)
+    if use_known_noise:
+        noise_stft = librosa.stft(noise, n_fft=win_length, hop_length=hop_length, win_length=win_length)
+    else:
+        fs = 16000
+        noise_duration_samples = int(0.02 * fs)
+        noise_ref = mic_signals[:, :noise_duration_samples]
+        noise_stft = librosa.stft(noise_ref, n_fft=win_length, hop_length=hop_length, win_length=win_length)
 
     noise_cov = estimate_cov_matrix(noise_stft)
+    # noise_cov = noise_cov + 0.1 * np.random.randn(*noise_cov.shape)
 
     rtf = estimate_rtf_using_gevd(mic_signals_stft, noise_cov)
-    w = _compute_mvdr_weights(noise_cov, rtf)
+
+    if use_taylor:
+        w = compute_taylor_beamformer(noise_cov, rtf, order=5).T
+    else:
+        w = _compute_mvdr_weights(noise_cov, rtf)
 
     X = np.asarray(mic_signals_stft, dtype=np.complex128)
     w = np.asarray(w, dtype=np.complex128)
@@ -122,6 +170,9 @@ def apply_mvdr(mic_signals, noise, win_length=800, hop_length=48):
 
     out_mvdr = librosa.istft(
         out_stft, hop_length=hop_length, win_length=win_length, n_fft=win_length, length=np.shape(mic_signals)[1])
+
+    if is_return_stft:
+        return out_stft, (hop_length, win_length, win_length, np.shape(mic_signals)[1])
 
     return np.real(out_mvdr)
 

@@ -10,3 +10,6 @@ torchmetrics[audio]
 pyyaml
 seaborn
 denoiser
+
+torch
+ptflops
