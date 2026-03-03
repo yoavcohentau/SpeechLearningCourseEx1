@@ -141,7 +141,7 @@ def compute_taylor_beamformer(Rn, d, order=1):
 
 
 def apply_mvdr(mic_signals, noise, win_length=800, hop_length=48,
-               is_return_stft=False, use_taylor=False, use_known_noise=True):
+               is_return_stft=False, use_taylor=False, use_known_noise=False):
     mic_signals_stft = librosa.stft(mic_signals, n_fft=win_length, hop_length=hop_length, win_length=win_length)
     if use_known_noise:
         noise_stft = librosa.stft(noise, n_fft=win_length, hop_length=hop_length, win_length=win_length)
@@ -234,7 +234,12 @@ def parse_and_plot_results(all_metrics):
         # for each dict
         for key, scores in example_dict.items():
             # split the format: f'{Algo}-{Noise}-{snr}-{T60}-{example_idx}'
-            parts = key.split('-')
+            # parts = key.split('-')
+
+            algo, noise, remaining = key.split('-', 2)
+            snr, t60, example_idx = remaining.rsplit('-', 2)
+            # print(f"Algo: {algo}, Noise: {noise}, SNR: {snr}, T60: {t60}, Index: {example_idx}")
+            parts = [algo, noise, snr, t60, example_idx]
 
             # sanity check
             if len(parts) < 5:
